@@ -1,0 +1,6 @@
+import React from "react";
+import LandlordPlaceholder from "@/components/landlord/LandlordPlaceholder";
+
+export default function LandlordAccount() {
+  return <LandlordPlaceholder title="My account" description="Your profile details and account settings will appear here." />;
+}

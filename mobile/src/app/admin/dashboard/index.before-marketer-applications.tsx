@@ -1,0 +1,2591 @@
+import React, { useMemo, useState } from 'react';
+import { router } from 'expo-router';
+import {
+  Activity,
+  AlertCircle,
+  ArrowUpRight,
+  BadgeCheck,
+  Bell,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Eye,
+  FileText,
+  Home,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Plus,
+  Search,
+  Settings,
+  ShieldCheck,
+  UserCheck,
+  UserRound,
+  Users,
+  X,
+} from 'lucide-react-native';
+import {
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { width } = Dimensions.get('window');
+const IS_LARGE_SCREEN = width >= 900;
+
+const COLORS = {
+  background: '#080B0C',
+  surface: '#0D1112',
+  card: '#121718',
+  cardHover: '#171D1E',
+  cardSoft: '#1A2122',
+
+  lime: '#D7FF5F',
+  limeSoft: '#242D18',
+  limeBorder: '#38451E',
+
+  white: '#FFFFFF',
+  text: '#F5F7F7',
+  textSoft: '#C1C8C9',
+  muted: '#7F8A8B',
+  subtle: '#5D6869',
+
+  border: '#202829',
+  borderLight: '#293233',
+
+  green: '#65D28A',
+  greenSoft: '#15271C',
+
+  orange: '#F2A354',
+  orangeSoft: '#2A2016',
+
+  blue: '#6EA0E8',
+  blueSoft: '#172232',
+
+  red: '#EF7777',
+  redSoft: '#2B1919',
+
+  sidebar: '#090D0E',
+  sidebarSoft: '#121819',
+  sidebarText: '#AAB3B4',
+};
+
+type MenuItem = {
+  label: string;
+  icon: React.ComponentType<any>;
+  route: string;
+  badge?: string;
+};
+
+type ActivityItem = {
+  title: string;
+  description: string;
+  time: string;
+  status: string;
+  statusColor: string;
+  statusBackground: string;
+  icon: React.ComponentType<any>;
+};
+
+type Accent = 'lime' | 'green' | 'orange' | 'blue';
+
+const workspaceItems: MenuItem[] = [
+  {
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    route: '/admin/dashboard',
+  },
+  {
+    label: 'Properties',
+    icon: Building2,
+    route: '/admin/properties',
+  },
+  {
+    label: 'Viewings',
+    icon: CalendarDays,
+    route: '/admin/viewings',
+    badge: '24',
+  },
+  {
+    label: 'Verification',
+    icon: ShieldCheck,
+    route: '/admin/verification',
+    badge: '12',
+  },
+];
+
+const peopleItems: MenuItem[] = [
+  {
+    label: 'Landlords',
+    icon: UserRound,
+    route: '/admin/landlords',
+  },
+  {
+    label: 'Marketer Applications',
+    icon: FileText,
+    route: '/admin/marketer-applications',
+    badge: 'NEW',
+  },
+  {
+    label: 'Marketers',
+    icon: UserCheck,
+    route: '/admin/marketers',
+  },
+  {
+    label: 'Users',
+    icon: Users,
+    route: '/admin/users',
+  },
+];
+
+const activities: ActivityItem[] = [
+  {
+    title: 'New property added',
+    description: '1 Bedroom · Kilimani, Nairobi',
+    time: '18 min ago',
+    status: 'Review',
+    statusColor: COLORS.orange,
+    statusBackground: COLORS.orangeSoft,
+    icon: Building2,
+  },
+  {
+    title: 'Property verified',
+    description: 'Bedsitter · Nchiru, Meru',
+    time: '42 min ago',
+    status: 'Verified',
+    statusColor: COLORS.green,
+    statusBackground: COLORS.greenSoft,
+    icon: BadgeCheck,
+  },
+  {
+    title: 'Viewing requested',
+    description: '2 Bedroom · Kileleshwa, Nairobi',
+    time: '1 hour ago',
+    status: 'Pending',
+    statusColor: COLORS.blue,
+    statusBackground: COLORS.blueSoft,
+    icon: CalendarDays,
+  },
+  {
+    title: 'New marketer registered',
+    description: 'Nairobi Central · Makazii Team',
+    time: '2 hours ago',
+    status: 'Active',
+    statusColor: COLORS.lime,
+    statusBackground: COLORS.limeSoft,
+    icon: UserCheck,
+  },
+];
+
+function Sidebar({
+  activeRoute,
+  onNavigate,
+  onClose,
+}: {
+  activeRoute: string;
+  onNavigate: (route: string) => void;
+  onClose?: () => void;
+}) {
+  const renderMenu = (items: MenuItem[]) => {
+    return items.map((item) => {
+      const Icon = item.icon;
+      const active = activeRoute === item.route;
+
+      return (
+        <Pressable
+          key={item.label}
+          onPress={() => {
+            onNavigate(item.route);
+            if (onClose) {
+              onClose();
+            }
+          }}
+          style={[
+            styles.navItem,
+            active ? styles.navItemActive : undefined,
+          ]}
+        >
+          <View style={styles.navItemLeft}>
+            <Icon
+              size={19}
+              color={active ? COLORS.lime : COLORS.sidebarText}
+              strokeWidth={active ? 2.3 : 1.8}
+            />
+
+            <Text
+              style={[
+                styles.navItemText,
+                active ? styles.navItemTextActive : undefined,
+              ]}
+            >
+              {item.label}
+            </Text>
+          </View>
+
+          {item.badge ? (
+            <View
+              style={[
+                styles.navBadge,
+                active ? styles.navBadgeActive : undefined,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.navBadgeText,
+                  active ? styles.navBadgeTextActive : undefined,
+                ]}
+              >
+                {item.badge}
+              </Text>
+            </View>
+          ) : null}
+        </Pressable>
+      );
+    });
+  };
+
+  return (
+    <View style={styles.sidebar}>
+      <View style={styles.sidebarHeader}>
+        <View style={styles.brandMark}>
+          <Home
+            size={19}
+            color={COLORS.lime}
+            strokeWidth={2.5}
+          />
+        </View>
+
+        <View>
+          <Text style={styles.brandName}>MAKAZII</Text>
+          <Text style={styles.brandSubtitle}>TEAM PORTAL</Text>
+        </View>
+
+        {onClose ? (
+          <Pressable
+            onPress={onClose}
+            style={styles.closeButton}
+          >
+            <X size={19} color={COLORS.textSoft} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.platformStatus}>
+        <View style={styles.onlineDot} />
+
+        <View style={styles.platformStatusContent}>
+          <Text style={styles.platformStatusTitle}>
+            Platform online
+          </Text>
+
+          <Text style={styles.platformStatusText}>
+            All systems operational
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.sidebarScroll}
+      >
+        <Text style={styles.navSectionTitle}>WORKSPACE</Text>
+
+        {renderMenu(workspaceItems)}
+
+        <Text
+          style={[
+            styles.navSectionTitle,
+            styles.navSectionSpacing,
+          ]}
+        >
+          PEOPLE
+        </Text>
+
+        {renderMenu(peopleItems)}
+
+        <Text
+          style={[
+            styles.navSectionTitle,
+            styles.navSectionSpacing,
+          ]}
+        >
+          SYSTEM
+        </Text>
+
+        <Pressable
+          onPress={() => {
+            onNavigate('/admin/settings');
+
+            if (onClose) {
+              onClose();
+            }
+          }}
+          style={styles.navItem}
+        >
+          <View style={styles.navItemLeft}>
+            <Settings
+              size={19}
+              color={COLORS.sidebarText}
+            />
+
+            <Text style={styles.navItemText}>
+              Settings
+            </Text>
+          </View>
+        </Pressable>
+      </ScrollView>
+
+      <View style={styles.sidebarFooter}>
+        <View style={styles.userMiniAvatar}>
+          <Text style={styles.userMiniAvatarText}>A</Text>
+        </View>
+
+        <View style={styles.sidebarUserInfo}>
+          <Text style={styles.userMiniName}>
+            Administrator
+          </Text>
+
+          <Text style={styles.userMiniRole}>
+            Platform admin
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={() =>
+            router.replace('/onboarding/role-selection')
+          }
+          style={styles.logoutButton}
+        >
+          <LogOut
+            size={17}
+            color={COLORS.sidebarText}
+          />
+        </Pressable>
+      </View>
+
+      <View style={styles.sidebarBrandFooter}>
+        <Text style={styles.sidebarBrandFooterName}>
+          MAKAZII
+        </Text>
+
+        <Text style={styles.sidebarBrandFooterTagline}>
+          FIND YOUR PLACE
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  change,
+  icon: Icon,
+  accent = 'lime',
+}: {
+  title: string;
+  value: string;
+  change: string;
+  icon: React.ComponentType<any>;
+  accent?: Accent;
+}) {
+  let accentColor = COLORS.lime;
+  let iconBackground = COLORS.limeSoft;
+
+  if (accent === 'green') {
+    accentColor = COLORS.green;
+    iconBackground = COLORS.greenSoft;
+  }
+
+  if (accent === 'orange') {
+    accentColor = COLORS.orange;
+    iconBackground = COLORS.orangeSoft;
+  }
+
+  if (accent === 'blue') {
+    accentColor = COLORS.blue;
+    iconBackground = COLORS.blueSoft;
+  }
+
+  return (
+    <View style={styles.statCard}>
+      <View style={styles.statTop}>
+        <View
+          style={[
+            styles.statIcon,
+            { backgroundColor: iconBackground },
+          ]}
+        >
+          <Icon
+            size={19}
+            color={accentColor}
+            strokeWidth={2}
+          />
+        </View>
+
+        <View style={styles.changePill}>
+          <ArrowUpRight
+            size={13}
+            color={COLORS.green}
+          />
+
+          <Text style={styles.changeText}>
+            {change}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.statValue}>
+        {value}
+      </Text>
+
+      <Text style={styles.statTitle}>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
+function ActivityRow({
+  item,
+}: {
+  item: ActivityItem;
+}) {
+  const Icon = item.icon;
+
+  return (
+    <Pressable style={styles.activityRow}>
+      <View style={styles.activityIcon}>
+        <Icon
+          size={18}
+          color={COLORS.textSoft}
+          strokeWidth={1.9}
+        />
+      </View>
+
+      <View style={styles.activityContent}>
+        <Text style={styles.activityTitle}>
+          {item.title}
+        </Text>
+
+        <Text style={styles.activityDescription}>
+          {item.description}
+        </Text>
+
+        <View style={styles.activityMeta}>
+          <Clock3
+            size={12}
+            color={COLORS.subtle}
+          />
+
+          <Text style={styles.activityTime}>
+            {item.time}
+          </Text>
+        </View>
+      </View>
+
+      <View
+        style={[
+          styles.activityStatus,
+          {
+            backgroundColor: item.statusBackground,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.activityStatusText,
+            {
+              color: item.statusColor,
+            },
+          ]}
+        >
+          {item.status}
+        </Text>
+      </View>
+
+      <ChevronRight
+        size={17}
+        color={COLORS.subtle}
+      />
+    </Pressable>
+  );
+}
+
+function ManagementCard({
+  title,
+  subtitle,
+  value,
+  icon: Icon,
+  route,
+}: {
+  title: string;
+  subtitle: string;
+  value: string;
+  icon: React.ComponentType<any>;
+  route: string;
+}) {
+  return (
+    <Pressable
+      onPress={() => router.push(route as any)}
+      style={styles.managementCard}
+    >
+      <View style={styles.managementIcon}>
+        <Icon
+          size={19}
+          color={COLORS.lime}
+          strokeWidth={2}
+        />
+      </View>
+
+      <View style={styles.managementMain}>
+        <Text style={styles.managementTitle}>
+          {title}
+        </Text>
+
+        <Text style={styles.managementSubtitle}>
+          {subtitle}
+        </Text>
+      </View>
+
+      <View style={styles.managementRight}>
+        <Text style={styles.managementValue}>
+          {value}
+        </Text>
+
+        <ChevronRight
+          size={17}
+          color={COLORS.subtle}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+export default function AdminDashboard() {
+  const [drawerOpen, setDrawerOpen] =
+    useState(false);
+
+  const [search, setSearch] =
+    useState('');
+
+  const filteredActivities = useMemo(() => {
+    const query = search
+      .trim()
+      .toLowerCase();
+
+    if (!query) {
+      return activities;
+    }
+
+    return activities.filter((item) => {
+      return (
+        item.title
+          .toLowerCase()
+          .includes(query) ||
+        item.description
+          .toLowerCase()
+          .includes(query) ||
+        item.status
+          .toLowerCase()
+          .includes(query)
+      );
+    });
+  }, [search]);
+
+  const navigate = (route: string) => {
+    setDrawerOpen(false);
+    router.push(route as any);
+  };
+
+  return (
+    <View style={styles.root}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={COLORS.background}
+      />
+
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.appShell}>
+          {IS_LARGE_SCREEN ? (
+            <Sidebar
+              activeRoute="/admin/dashboard"
+              onNavigate={navigate}
+            />
+          ) : null}
+
+          <View style={styles.main}>
+            <View style={styles.topbar}>
+              <View style={styles.topbarLeft}>
+                {!IS_LARGE_SCREEN ? (
+                  <Pressable
+                    onPress={() =>
+                      setDrawerOpen(true)
+                    }
+                    style={styles.menuButton}
+                  >
+                    <Menu
+                      size={22}
+                      color={COLORS.text}
+                    />
+                  </Pressable>
+                ) : null}
+
+                <View>
+                  <Text style={styles.breadcrumb}>
+                    MAKAZII / DASHBOARD
+                  </Text>
+
+                  <Text style={styles.pageTitle}>
+                    Overview
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.topbarRight}>
+                {IS_LARGE_SCREEN ? (
+                  <View style={styles.searchBox}>
+                    <Search
+                      size={17}
+                      color={COLORS.muted}
+                    />
+
+                    <TextInput
+                      value={search}
+                      onChangeText={setSearch}
+                      placeholder="Search anything"
+                      placeholderTextColor={
+                        COLORS.muted
+                      }
+                      style={styles.searchInput}
+                    />
+
+                    <View
+                      style={
+                        styles.searchShortcut
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.searchShortcutText
+                        }
+                      >
+                        /
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                <Pressable
+                  style={
+                    styles.notificationButton
+                  }
+                >
+                  <Bell
+                    size={19}
+                    color={COLORS.textSoft}
+                  />
+
+                  <View
+                    style={
+                      styles.notificationDot
+                    }
+                  />
+                </Pressable>
+
+                <View style={styles.adminAvatar}>
+                  <Text
+                    style={styles.adminAvatarText}
+                  >
+                    A
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {!IS_LARGE_SCREEN ? (
+              <View style={styles.mobileSearch}>
+                <Search
+                  size={17}
+                  color={COLORS.muted}
+                />
+
+                <TextInput
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Search properties, users..."
+                  placeholderTextColor={
+                    COLORS.muted
+                  }
+                  style={
+                    styles.mobileSearchInput
+                  }
+                />
+              </View>
+            ) : null}
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={
+                styles.content
+              }
+            >
+              <View style={styles.hero}>
+                <View style={styles.heroGlow} />
+
+                <View style={styles.heroContent}>
+                  <View style={styles.livePill}>
+                    <View
+                      style={styles.liveDot}
+                    />
+
+                    <Text
+                      style={styles.livePillText}
+                    >
+                      SYSTEM LIVE
+                    </Text>
+                  </View>
+
+                  <Text style={styles.heroTitle}>
+                    Good morning, Admin
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.heroDescription
+                    }
+                  >
+                    Here is what is happening
+                    across the Makazii property
+                    marketplace today.
+                  </Text>
+
+                  <View
+                    style={styles.heroActions}
+                  >
+                    <Pressable
+                      onPress={() =>
+                        router.push(
+                          '/admin/properties' as any,
+                        )
+                      }
+                      style={
+                        styles.primaryButton
+                      }
+                    >
+                      <Plus
+                        size={18}
+                        color={
+                          COLORS.background
+                        }
+                      />
+
+                      <Text
+                        style={
+                          styles.primaryButtonText
+                        }
+                      >
+                        Add property
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() =>
+                        router.push(
+                          '/admin/verification' as any,
+                        )
+                      }
+                      style={
+                        styles.secondaryButton
+                      }
+                    >
+                      <ShieldCheck
+                        size={17}
+                        color={COLORS.textSoft}
+                      />
+
+                      <Text
+                        style={
+                          styles.secondaryButtonText
+                        }
+                      >
+                        Review queue
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                <View
+                  style={styles.heroDecoration}
+                >
+                  <View
+                    style={
+                      styles.heroCircleLarge
+                    }
+                  />
+
+                  <View
+                    style={
+                      styles.heroCircleSmall
+                    }
+                  />
+
+                  <Building2
+                    size={82}
+                    color={COLORS.lime}
+                    strokeWidth={0.8}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.sectionHeader}>
+                <View>
+                  <Text
+                    style={styles.sectionTitle}
+                  >
+                    Platform overview
+                  </Text>
+
+                  <Text
+                    style={styles.sectionSubtitle}
+                  >
+                    Current marketplace activity
+                  </Text>
+                </View>
+
+                <Text
+                  style={styles.updatedText}
+                >
+                  Updated just now
+                </Text>
+              </View>
+
+              <View style={styles.statsGrid}>
+                <StatCard
+                  title="Total properties"
+                  value="128"
+                  change="+8%"
+                  icon={Building2}
+                  accent="lime"
+                />
+
+                <StatCard
+                  title="Viewing requests"
+                  value="24"
+                  change="+12%"
+                  icon={CalendarDays}
+                  accent="blue"
+                />
+
+                <StatCard
+                  title="Pending verification"
+                  value="12"
+                  change="+4"
+                  icon={ShieldCheck}
+                  accent="orange"
+                />
+
+                <StatCard
+                  title="Active marketers"
+                  value="18"
+                  change="+2"
+                  icon={UserCheck}
+                  accent="green"
+                />
+              </View>
+
+              <View
+                style={styles.mainGrid}
+              >
+                <View
+                  style={styles.activityCard}
+                >
+                  <View
+                    style={styles.cardHeader}
+                  >
+                    <View>
+                      <Text
+                        style={styles.cardTitle}
+                      >
+                        Recent activity
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.cardSubtitle
+                        }
+                      >
+                        Latest actions on the
+                        platform
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      onPress={() =>
+                        router.push(
+                          '/admin/viewings' as any,
+                        )
+                      }
+                      style={
+                        styles.viewAllButton
+                      }
+                    >
+                      <Text
+                        style={styles.viewAllText}
+                      >
+                        View all
+                      </Text>
+
+                      <ChevronRight
+                        size={15}
+                        color={COLORS.lime}
+                      />
+                    </Pressable>
+                  </View>
+
+                  <View
+                    style={styles.activityList}
+                  >
+                    {filteredActivities.length >
+                    0 ? (
+                      filteredActivities.map(
+                        (item, index) => (
+                          <React.Fragment
+                            key={`${item.title}-${index}`}
+                          >
+                            <ActivityRow
+                              item={item}
+                            />
+
+                            {index !==
+                            filteredActivities.length -
+                              1 ? (
+                              <View
+                                style={
+                                  styles.activityDivider
+                                }
+                              />
+                            ) : null}
+                          </React.Fragment>
+                        ),
+                      )
+                    ) : (
+                      <View
+                        style={styles.emptySearch}
+                      >
+                        <Search
+                          size={25}
+                          color={COLORS.subtle}
+                        />
+
+                        <Text
+                          style={
+                            styles.emptySearchTitle
+                          }
+                        >
+                          No activity found
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.emptySearchText
+                          }
+                        >
+                          Try another search term.
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.sideColumn}>
+                  <View
+                    style={
+                      styles.attentionCard
+                    }
+                  >
+                    <View
+                      style={
+                        styles.attentionTop
+                      }
+                    >
+                      <View
+                        style={
+                          styles.attentionIcon
+                        }
+                      >
+                        <AlertCircle
+                          size={19}
+                          color={COLORS.orange}
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.attentionContent
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.attentionTitle
+                          }
+                        >
+                          Needs attention
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.attentionSubtitle
+                          }
+                        >
+                          Items waiting for your
+                          action
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View
+                      style={
+                        styles.attentionCountRow
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.attentionCount
+                        }
+                      >
+                        12
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.attentionLabel
+                        }
+                      >
+                        properties pending
+                        verification
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      onPress={() =>
+                        router.push(
+                          '/admin/verification' as any,
+                        )
+                      }
+                      style={
+                        styles.attentionButton
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.attentionButtonText
+                        }
+                      >
+                        Review verification
+                      </Text>
+
+                      <ArrowUpRight
+                        size={16}
+                        color={COLORS.orange}
+                      />
+                    </Pressable>
+                  </View>
+
+                  <View
+                    style={styles.viewingCard}
+                  >
+                    <View
+                      style={
+                        styles.viewingHeader
+                      }
+                    >
+                      <View
+                        style={
+                          styles.viewingIcon
+                        }
+                      >
+                        <CalendarDays
+                          size={18}
+                          color={COLORS.lime}
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.viewingHeaderText
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.viewingLabel
+                          }
+                        >
+                          NEXT VIEWING
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.viewingDate
+                          }
+                        >
+                          26 SEP · 10:30 AM
+                        </Text>
+                      </View>
+
+                      <View
+                        style={
+                          styles.confirmedPill
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.confirmedPillText
+                          }
+                        >
+                          CONFIRMED
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View
+                      style={
+                        styles.viewingProperty
+                      }
+                    >
+                      <View
+                        style={
+                          styles.viewingPropertyIcon
+                        }
+                      >
+                        <Home
+                          size={18}
+                          color={COLORS.textSoft}
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.viewingPropertyInfo
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.viewingPropertyTitle
+                          }
+                        >
+                          1 Bedroom
+                        </Text>
+
+                        <View
+                          style={
+                            styles.locationRow
+                          }
+                        >
+                          <MapPinIcon />
+
+                          <Text
+                            style={
+                              styles.locationText
+                            }
+                          >
+                            Kilimani, Nairobi
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Eye
+                        size={16}
+                        color={COLORS.subtle}
+                      />
+                    </View>
+
+                    <Pressable
+                      onPress={() =>
+                        router.push(
+                          '/admin/viewings' as any,
+                        )
+                      }
+                      style={
+                        styles.viewingButton
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.viewingButtonText
+                        }
+                      >
+                        Open viewing schedule
+                      </Text>
+
+                      <ChevronRight
+                        size={16}
+                        color={COLORS.textSoft}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+
+              <View
+                style={
+                  styles.sectionHeaderManagement
+                }
+              >
+                <View>
+                  <Text
+                    style={styles.sectionTitle}
+                  >
+                    Management
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.sectionSubtitle
+                    }
+                  >
+                    Access your core marketplace
+                    operations
+                  </Text>
+                </View>
+
+                <Activity
+                  size={19}
+                  color={COLORS.subtle}
+                />
+              </View>
+
+              <View
+                style={styles.managementGrid}
+              >
+                <ManagementCard
+                  title="Properties"
+                  subtitle="Manage all homes"
+                  value="128"
+                  icon={Building2}
+                  route="/admin/properties"
+                />
+
+                <ManagementCard
+                  title="Viewings"
+                  subtitle="Viewing requests"
+                  value="24"
+                  icon={CalendarDays}
+                  route="/admin/viewings"
+                />
+
+                <ManagementCard
+                  title="Landlords"
+                  subtitle="Property owners"
+                  value="76"
+                  icon={UserRound}
+                  route="/admin/landlords"
+                />
+
+                <ManagementCard
+                  title="Marketers"
+                  subtitle="Makazii field team"
+                  value="18"
+                  icon={UserCheck}
+                  route="/admin/marketers"
+                />
+              </View>
+
+              <View
+                style={styles.bottomInfo}
+              >
+                <View
+                  style={
+                    styles.bottomInfoIcon
+                  }
+                >
+                  <CheckCircle2
+                    size={17}
+                    color={COLORS.green}
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.bottomInfoContent
+                  }
+                >
+                  <Text
+                    style={
+                      styles.bottomInfoTitle
+                    }
+                  >
+                    Makazii platform health
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.bottomInfoText
+                    }
+                  >
+                    Your marketplace is currently
+                    operational. All administrative
+                    tools are available.
+                  </Text>
+                </View>
+
+                <View
+                  style={styles.healthPill}
+                >
+                  <View
+                    style={styles.healthDot}
+                  />
+
+                  <Text
+                    style={styles.healthText}
+                  >
+                    Operational
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.footer}>
+                <Text
+                  style={styles.footerBrand}
+                >
+                  MAKAZII
+                </Text>
+
+                <Text
+                  style={styles.footerDivider}
+                >
+                  •
+                </Text>
+
+                <Text
+                  style={styles.footerTagline}
+                >
+                  FIND YOUR PLACE
+                </Text>
+
+                <Text
+                  style={styles.footerVersion}
+                >
+                  Team Portal · v1.0
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </SafeAreaView>
+
+      {!IS_LARGE_SCREEN &&
+      drawerOpen ? (
+        <View
+          style={styles.drawerOverlay}
+        >
+          <Pressable
+            style={styles.drawerBackdrop}
+            onPress={() =>
+              setDrawerOpen(false)
+            }
+          />
+
+          <View
+            style={styles.mobileDrawer}
+          >
+            <Sidebar
+              activeRoute="/admin/dashboard"
+              onNavigate={navigate}
+              onClose={() =>
+                setDrawerOpen(false)
+              }
+            />
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function MapPinIcon() {
+  return (
+    <View style={styles.mapPin}>
+      <View style={styles.mapPinDot} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  appShell: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: COLORS.background,
+  },
+
+  sidebar: {
+    width: 260,
+    backgroundColor: COLORS.sidebar,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
+    paddingTop: 18,
+    paddingBottom: 14,
+  },
+
+  sidebarHeader: {
+    minHeight: 66,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  brandMark: {
+    width: 39,
+    height: 39,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.limeSoft,
+    borderWidth: 1,
+    borderColor: COLORS.limeBorder,
+    marginRight: 11,
+  },
+
+  brandName: {
+    color: COLORS.white,
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 1.8,
+  },
+
+  brandSubtitle: {
+    color: COLORS.muted,
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 1.7,
+    marginTop: 2,
+  },
+
+  closeButton: {
+    marginLeft: 'auto',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.sidebarSoft,
+  },
+
+  platformStatus: {
+    marginHorizontal: 15,
+    marginTop: 17,
+    marginBottom: 21,
+    padding: 12,
+    borderRadius: 13,
+    backgroundColor: COLORS.sidebarSoft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.green,
+    marginRight: 10,
+  },
+
+  platformStatusContent: {
+    flex: 1,
+  },
+
+  platformStatusTitle: {
+    color: COLORS.textSoft,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  platformStatusText: {
+    color: COLORS.muted,
+    fontSize: 9.5,
+    marginTop: 2,
+  },
+
+  sidebarScroll: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+
+  navSectionTitle: {
+    color: COLORS.subtle,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginHorizontal: 10,
+    marginBottom: 8,
+  },
+
+  navSectionSpacing: {
+    marginTop: 24,
+  },
+
+  navItem: {
+    height: 45,
+    paddingHorizontal: 12,
+    borderRadius: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+
+  navItemActive: {
+    backgroundColor: COLORS.limeSoft,
+    borderWidth: 1,
+    borderColor: COLORS.limeBorder,
+  },
+
+  navItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  navItemText: {
+    color: COLORS.sidebarText,
+    fontSize: 12.5,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+
+  navItemTextActive: {
+    color: COLORS.lime,
+    fontWeight: '800',
+  },
+
+  navBadge: {
+    minWidth: 25,
+    height: 22,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardSoft,
+  },
+
+  navBadgeActive: {
+    backgroundColor: COLORS.lime,
+  },
+
+  navBadgeText: {
+    color: COLORS.muted,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  navBadgeTextActive: {
+    color: COLORS.background,
+  },
+
+  sidebarFooter: {
+    marginHorizontal: 13,
+    padding: 11,
+    borderRadius: 13,
+    backgroundColor: COLORS.sidebarSoft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  userMiniAvatar: {
+    width: 33,
+    height: 33,
+    borderRadius: 10,
+    backgroundColor: COLORS.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  userMiniAvatarText: {
+    color: COLORS.background,
+    fontWeight: '900',
+    fontSize: 13,
+  },
+
+  sidebarUserInfo: {
+    flex: 1,
+  },
+
+  userMiniName: {
+    color: COLORS.text,
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+
+  userMiniRole: {
+    color: COLORS.muted,
+    fontSize: 9.5,
+    marginTop: 2,
+  },
+
+  logoutButton: {
+    width: 31,
+    height: 31,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  sidebarBrandFooter: {
+    alignItems: 'center',
+    marginTop: 17,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    marginHorizontal: 15,
+  },
+
+  sidebarBrandFooterName: {
+    color: COLORS.textSoft,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+
+  sidebarBrandFooterTagline: {
+    color: COLORS.subtle,
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginTop: 3,
+  },
+
+  main: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  topbar: {
+    minHeight: 74,
+    paddingHorizontal: IS_LARGE_SCREEN ? 30 : 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+  },
+
+  topbarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  breadcrumb: {
+    color: COLORS.muted,
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    marginBottom: 3,
+  },
+
+  pageTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+
+  menuButton: {
+    width: 41,
+    height: 41,
+    borderRadius: 11,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+
+  topbarRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  searchBox: {
+    width: 245,
+    height: 40,
+    borderRadius: 11,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 11,
+  },
+
+  searchInput: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 11.5,
+    paddingVertical: 0,
+    marginLeft: 8,
+  },
+
+  searchShortcut: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    backgroundColor: COLORS.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  searchShortcutText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  notificationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    marginRight: 11,
+  },
+
+  notificationDot: {
+    position: 'absolute',
+    top: 9,
+    right: 9,
+    width: 6,
+    height: 6,
+    borderRadius: 6,
+    backgroundColor: COLORS.lime,
+  },
+
+  adminAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  adminAvatarText: {
+    color: COLORS.background,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  mobileSearch: {
+    height: 44,
+    marginHorizontal: 16,
+    marginTop: 13,
+    borderRadius: 12,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  mobileSearchInput: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 12,
+    marginLeft: 9,
+  },
+
+  content: {
+    padding: IS_LARGE_SCREEN ? 30 : 16,
+    paddingBottom: 35,
+  },
+
+  hero: {
+    minHeight: 220,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    position: 'relative',
+    marginBottom: 28,
+  },
+
+  heroGlow: {
+    position: 'absolute',
+    width: 230,
+    height: 230,
+    borderRadius: 230,
+    backgroundColor: COLORS.limeSoft,
+    right: -70,
+    top: -100,
+    opacity: 0.8,
+  },
+
+  heroContent: {
+    paddingHorizontal: IS_LARGE_SCREEN ? 27 : 21,
+    paddingVertical: 25,
+    maxWidth: 700,
+    zIndex: 2,
+  },
+
+  livePill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    height: 25,
+    borderRadius: 20,
+    backgroundColor: COLORS.greenSoft,
+    borderWidth: 1,
+    borderColor: '#24412D',
+  },
+
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 6,
+    backgroundColor: COLORS.green,
+    marginRight: 7,
+  },
+
+  livePillText: {
+    color: COLORS.green,
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  heroTitle: {
+    color: COLORS.white,
+    fontSize: IS_LARGE_SCREEN ? 31 : 26,
+    fontWeight: '900',
+    letterSpacing: -1,
+    marginTop: 15,
+  },
+
+  heroDescription: {
+    color: COLORS.textSoft,
+    fontSize: 12,
+    lineHeight: 19,
+    maxWidth: 580,
+    marginTop: 8,
+  },
+
+  heroActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 19,
+    flexWrap: 'wrap',
+  },
+
+  primaryButton: {
+    height: 42,
+    paddingHorizontal: 16,
+    borderRadius: 11,
+    backgroundColor: COLORS.lime,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  primaryButtonText: {
+    color: COLORS.background,
+    fontSize: 11.5,
+    fontWeight: '900',
+    marginLeft: 7,
+  },
+
+  secondaryButton: {
+    height: 42,
+    paddingHorizontal: 15,
+    borderRadius: 11,
+    backgroundColor: COLORS.cardSoft,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  secondaryButtonText: {
+    color: COLORS.textSoft,
+    fontSize: 11.5,
+    fontWeight: '700',
+    marginLeft: 7,
+  },
+
+  heroDecoration: {
+    position: 'absolute',
+    right: 25,
+    bottom: 10,
+    width: 170,
+    height: 170,
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.18,
+  },
+
+  heroCircleLarge: {
+    position: 'absolute',
+    width: 165,
+    height: 165,
+    borderRadius: 165,
+    borderWidth: 1,
+    borderColor: COLORS.lime,
+  },
+
+  heroCircleSmall: {
+    position: 'absolute',
+    width: 105,
+    height: 105,
+    borderRadius: 105,
+    borderWidth: 1,
+    borderColor: COLORS.lime,
+  },
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 13,
+  },
+
+  sectionTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+
+  sectionSubtitle: {
+    color: COLORS.muted,
+    fontSize: 10.5,
+    marginTop: 3,
+  },
+
+  updatedText: {
+    color: COLORS.subtle,
+    fontSize: 9.5,
+  },
+
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 28,
+  },
+
+  statCard: {
+    flex: 1,
+    minWidth: IS_LARGE_SCREEN ? 185 : 150,
+    minHeight: 140,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginRight: 12,
+    marginBottom: 12,
+  },
+
+  statTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  statIcon: {
+    width: 37,
+    height: 37,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  changePill: {
+    height: 24,
+    borderRadius: 7,
+    paddingHorizontal: 7,
+    backgroundColor: COLORS.greenSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  changeText: {
+    color: COLORS.green,
+    fontSize: 9,
+    fontWeight: '800',
+    marginLeft: 2,
+  },
+
+  statValue: {
+    color: COLORS.white,
+    fontSize: 27,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+    marginTop: 17,
+  },
+
+  statTitle: {
+    color: COLORS.muted,
+    fontSize: 10.5,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+
+  mainGrid: {
+    flexDirection: IS_LARGE_SCREEN
+      ? 'row'
+      : 'column',
+  },
+
+  activityCard: {
+    flex: 1.65,
+    backgroundColor: COLORS.card,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    marginRight: IS_LARGE_SCREEN ? 13 : 0,
+    marginBottom: IS_LARGE_SCREEN ? 0 : 13,
+  },
+
+  cardHeader: {
+    minHeight: 76,
+    paddingHorizontal: 17,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  cardTitle: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  cardSubtitle: {
+    color: COLORS.muted,
+    fontSize: 9.5,
+    marginTop: 3,
+  },
+
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  viewAllText: {
+    color: COLORS.lime,
+    fontSize: 10,
+    fontWeight: '800',
+    marginRight: 2,
+  },
+
+  activityList: {
+    paddingHorizontal: 17,
+  },
+
+  activityRow: {
+    minHeight: 91,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  activityIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: COLORS.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  activityContent: {
+    flex: 1,
+    marginRight: 8,
+  },
+
+  activityTitle: {
+    color: COLORS.text,
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+
+  activityDescription: {
+    color: COLORS.muted,
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  activityMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+  },
+
+  activityTime: {
+    color: COLORS.subtle,
+    fontSize: 8.5,
+    marginLeft: 4,
+  },
+
+  activityStatus: {
+    paddingHorizontal: 7,
+    height: 22,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+
+  activityStatusText: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+
+  activityDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+
+  emptySearch: {
+    minHeight: 190,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  emptySearchTitle: {
+    color: COLORS.textSoft,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 10,
+  },
+
+  emptySearchText: {
+    color: COLORS.muted,
+    fontSize: 10,
+    marginTop: 4,
+  },
+
+  sideColumn: {
+    flex: 1,
+  },
+
+  attentionCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 17,
+    marginBottom: 13,
+  },
+
+  attentionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  attentionIcon: {
+    width: 37,
+    height: 37,
+    borderRadius: 10,
+    backgroundColor: COLORS.orangeSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  attentionContent: {
+    flex: 1,
+  },
+
+  attentionTitle: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  attentionSubtitle: {
+    color: COLORS.muted,
+    fontSize: 9,
+    marginTop: 2,
+  },
+
+  attentionCountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 18,
+  },
+
+  attentionCount: {
+    color: COLORS.orange,
+    fontSize: 29,
+    fontWeight: '900',
+    marginRight: 7,
+  },
+
+  attentionLabel: {
+    flex: 1,
+    color: COLORS.textSoft,
+    fontSize: 9.5,
+    lineHeight: 14,
+  },
+
+  attentionButton: {
+    marginTop: 14,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: COLORS.orangeSoft,
+    borderWidth: 1,
+    borderColor: '#4A321B',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  attentionButtonText: {
+    color: COLORS.orange,
+    fontSize: 10,
+    fontWeight: '800',
+    marginRight: 5,
+  },
+
+  viewingCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 17,
+  },
+
+  viewingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  viewingIcon: {
+    width: 37,
+    height: 37,
+    borderRadius: 10,
+    backgroundColor: COLORS.limeSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  viewingHeaderText: {
+    flex: 1,
+  },
+
+  viewingLabel: {
+    color: COLORS.subtle,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+
+  viewingDate: {
+    color: COLORS.text,
+    fontSize: 11.5,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+
+  confirmedPill: {
+    paddingHorizontal: 7,
+    height: 21,
+    borderRadius: 6,
+    backgroundColor: COLORS.greenSoft,
+    justifyContent: 'center',
+  },
+
+  confirmedPillText: {
+    color: COLORS.green,
+    fontSize: 7.5,
+    fontWeight: '900',
+  },
+
+  viewingProperty: {
+    marginTop: 15,
+    padding: 10,
+    borderRadius: 11,
+    backgroundColor: COLORS.cardSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  viewingPropertyIcon: {
+    width: 35,
+    height: 35,
+    borderRadius: 9,
+    backgroundColor: COLORS.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 9,
+  },
+
+  viewingPropertyInfo: {
+    flex: 1,
+  },
+
+  viewingPropertyTitle: {
+    color: COLORS.text,
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+
+  mapPin: {
+    width: 10,
+    height: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+
+  mapPinDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 3,
+    backgroundColor: COLORS.muted,
+  },
+
+  locationText: {
+    color: COLORS.muted,
+    fontSize: 8.5,
+  },
+
+  viewingButton: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+
+  viewingButtonText: {
+    color: COLORS.textSoft,
+    fontSize: 9.5,
+    fontWeight: '700',
+  },
+
+  sectionHeaderManagement: {
+    marginTop: 29,
+    marginBottom: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  managementGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+
+  managementCard: {
+    flex: 1,
+    minWidth: IS_LARGE_SCREEN ? 210 : 155,
+    minHeight: 82,
+    borderRadius: 14,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 11,
+    marginBottom: 11,
+  },
+
+  managementIcon: {
+    width: 37,
+    height: 37,
+    borderRadius: 10,
+    backgroundColor: COLORS.limeSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  managementMain: {
+    flex: 1,
+  },
+
+  managementTitle: {
+    color: COLORS.text,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  managementSubtitle: {
+    color: COLORS.muted,
+    fontSize: 8.5,
+    marginTop: 3,
+  },
+
+  managementRight: {
+    alignItems: 'flex-end',
+  },
+
+  managementValue: {
+    color: COLORS.textSoft,
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 5,
+  },
+
+  bottomInfo: {
+    marginTop: 11,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  bottomInfoIcon: {
+    width: 35,
+    height: 35,
+    borderRadius: 10,
+    backgroundColor: COLORS.greenSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  bottomInfoContent: {
+    flex: 1,
+  },
+
+  bottomInfoTitle: {
+    color: COLORS.textSoft,
+    fontSize: 10.5,
+    fontWeight: '800',
+  },
+
+  bottomInfoText: {
+    color: COLORS.muted,
+    fontSize: 8.5,
+    marginTop: 2,
+    lineHeight: 13,
+  },
+
+  healthPill: {
+    height: 26,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.greenSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+
+  healthDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 5,
+    backgroundColor: COLORS.green,
+    marginRight: 5,
+  },
+
+  healthText: {
+    color: COLORS.green,
+    fontSize: 8,
+    fontWeight: '800',
+  },
+
+  footer: {
+    marginTop: 25,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  footerBrand: {
+    color: COLORS.textSoft,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+
+  footerDivider: {
+    color: COLORS.subtle,
+    fontSize: 9,
+    marginHorizontal: 6,
+  },
+
+  footerTagline: {
+    color: COLORS.subtle,
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+
+  footerVersion: {
+    color: COLORS.subtle,
+    fontSize: 8,
+    marginLeft: 'auto',
+  },
+
+  drawerOverlay: {
+    ...StyleSheet.absoluteFill,
+    flexDirection: 'row',
+    zIndex: 100,
+  },
+
+  drawerBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+
+  mobileDrawer: {
+    width: 275,
+    backgroundColor: COLORS.sidebar,
+  },
+});

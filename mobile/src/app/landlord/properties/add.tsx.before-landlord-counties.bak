@@ -1,0 +1,1115 @@
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as SecureStore from "expo-secure-store";
+import * as ImagePicker from "expo-image-picker";
+import { router } from "expo-router";
+import { ArrowLeft, Check, ImagePlus, X } from "lucide-react-native";
+import { API_BASE_URL, API_ENDPOINTS } from "@/config/api";
+
+const TOKEN_KEY = "makazii_landlord_token";
+const LIME = "#D7FF5F";
+
+type Option = { id: string; name: string };
+type Photo = ImagePicker.ImagePickerAsset;
+
+const LONG_TYPES = [
+  ["SINGLE_ROOM", "Single room"],
+  ["BEDSITTER", "Bedsitter"],
+  ["STUDIO", "Studio"],
+  ["ONE_BEDROOM", "1 bedroom"],
+  ["TWO_BEDROOM", "2 bedrooms"],
+  ["THREE_BEDROOM", "3 bedrooms"],
+  ["FOUR_PLUS_BEDROOM", "4+ bedrooms"],
+  ["HOUSE", "House"],
+  ["APARTMENT", "Apartment"],
+];
+
+const SHORT_TYPES = [
+  ["BNB", "B&B / BnB"],
+  ["LODGE", "Lodge"],
+  ["GUEST_HOUSE", "Guest house"],
+  ["HOTEL_ROOM", "Hotel room"],
+  ["SERVICED_APARTMENT", "Serviced apartment"],
+  ["FURNISHED_APARTMENT", "Furnished apartment"],
+  ["HOLIDAY_HOME", "Holiday home"],
+  ["VILLA", "Villa"],
+  ["COTTAGE", "Cottage"],
+  ["HOSTEL", "Hostel"],
+  ["PRIVATE_ROOM", "Private room"],
+];
+
+const STAY_MODES = [
+  ["DAY", "Day stay"],
+  ["OVERNIGHT", "Overnight"],
+  ["DAY_AND_NIGHT", "Day and night"],
+  ["FLEXIBLE", "Flexible"],
+];
+
+const FURNISHING = [
+  ["UNFURNISHED", "Unfurnished"],
+  ["SEMI_FURNISHED", "Semi-furnished"],
+  ["FURNISHED", "Furnished"],
+];
+
+async function getToken(): Promise<string | null> {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      return window.localStorage.getItem(TOKEN_KEY);
+    }
+  } catch {}
+  try {
+    return await SecureStore.getItemAsync(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function extractList(json: any, keys: string[]): Option[] {
+  let value: any = json;
+  for (const key of keys) {
+    if (value && value[key] !== undefined) {
+      value = value[key];
+      break;
+    }
+  }
+  if (Array.isArray(value)) return value;
+  if (value && Array.isArray(value.data)) return value.data;
+  return [];
+}
+
+function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  multiline = false,
+  keyboardType = "default",
+}: {
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+  keyboardType?: "default" | "numeric" | "decimal-pad";
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder || label}
+        placeholderTextColor="#697477"
+        keyboardType={keyboardType}
+        multiline={multiline}
+        textAlignVertical={multiline ? "top" : "center"}
+        style={[styles.input, multiline && styles.multiline]}
+      />
+    </View>
+  );
+}
+
+function ChoiceGroup({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[][];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.choices}>
+        {options.map(([id, name]) => {
+          const selected = value === id;
+          return (
+            <Pressable
+              key={id}
+              onPress={() => onChange(id)}
+              style={[styles.choice, selected && styles.choiceSelected]}
+            >
+              {selected ? <Check color="#0B0F10" size={14} /> : null}
+              <Text
+                style={[
+                  styles.choiceText,
+                  selected && styles.choiceTextSelected,
+                ]}
+              >
+                {name}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function LocationChoices({
+  label,
+  options,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  label: string;
+  options: Option[];
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      {options.length === 0 ? (
+        <Text style={styles.helper}>
+          {disabled ? "Choose the previous location first." : "No options loaded."}
+        </Text>
+      ) : (
+        <View style={styles.choices}>
+          {options.map((item) => {
+            const selected = value === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                disabled={disabled}
+                onPress={() => onChange(item.id)}
+                style={[styles.choice, selected && styles.choiceSelected]}
+              >
+                {selected ? <Check color="#0B0F10" size={14} /> : null}
+                <Text
+                  style={[
+                    styles.choiceText,
+                    selected && styles.choiceTextSelected,
+                  ]}
+                >
+                  {item.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+export default function AddLandlordProperty() {
+  const [token, setToken] = useState<string | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const [counties, setCounties] = useState<Option[]>([]);
+  const [constituencies, setConstituencies] = useState<Option[]>([]);
+  const [wards, setWards] = useState<Option[]>([]);
+  const [places, setPlaces] = useState<Option[]>([]);
+  const [amenities, setAmenities] = useState<Option[]>([]);
+
+  const [countyId, setCountyId] = useState("");
+  const [constituencyId, setConstituencyId] = useState("");
+  const [wardId, setWardId] = useState("");
+  const [placeId, setPlaceId] = useState("");
+  const [amenityIds, setAmenityIds] = useState<string[]>([]);
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [purpose, setPurpose] = useState("LONG_STAY");
+  const [longStayType, setLongStayType] = useState("BEDSITTER");
+  const [shortStayType, setShortStayType] = useState("BNB");
+  const [stayMode, setStayMode] = useState("OVERNIGHT");
+  const [furnishing, setFurnishing] = useState("FURNISHED");
+
+  const [monthlyRent, setMonthlyRent] = useState("");
+  const [deposit, setDeposit] = useState("");
+  const [viewingFee, setViewingFee] = useState("");
+  const [serviceCharge, setServiceCharge] = useState("");
+  const [dayRate, setDayRate] = useState("");
+  const [nightRate, setNightRate] = useState("");
+  const [dayNightRate, setDayNightRate] = useState("");
+
+  const [bedrooms, setBedrooms] = useState("");
+  const [bathrooms, setBathrooms] = useState("");
+  const [beds, setBeds] = useState("");
+  const [rooms, setRooms] = useState("");
+  const [maxGuests, setMaxGuests] = useState("");
+  const [photos, setPhotos] = useState<Photo[]>([]);
+
+  const requestJson = useCallback(
+    async (path: string) => {
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        throw new Error(json.message || "Could not load form options.");
+      }
+      return json;
+    },
+    [token]
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function initialise() {
+      try {
+        const savedToken = await getToken();
+        if (!mounted) return;
+        setToken(savedToken);
+
+        if (!savedToken) {
+          setError("Please sign in to your landlord account first.");
+          return;
+        }
+
+        const [countyJson, amenityJson] = await Promise.all([
+          requestWithToken(API_ENDPOINTS.geographyCounties, savedToken),
+          requestWithToken(API_ENDPOINTS.landlordAmenities, savedToken),
+        ]);
+
+        if (!mounted) return;
+
+        const countyList = extractList(countyJson, ["data", "counties"]);
+        const amenityList = extractList(amenityJson, ["amenities", "data"]);
+        setCounties(countyList);
+        setAmenities(amenityList);
+      } catch (err) {
+        if (mounted) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Unable to load locations and amenities."
+          );
+        }
+      } finally {
+        if (mounted) setLoadingOptions(false);
+      }
+    }
+
+    initialise();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  async function loadOptions(path: string): Promise<any> {
+    return requestJson(path);
+  }
+
+  async function selectCounty(id: string) {
+    setCountyId(id);
+    setConstituencyId("");
+    setWardId("");
+    setPlaceId("");
+    setConstituencies([]);
+    setWards([]);
+    setPlaces([]);
+
+    try {
+      const [constituencyJson, placeJson] = await Promise.all([
+        loadOptions(API_ENDPOINTS.geographyConstituencies(id)),
+        loadOptions(API_ENDPOINTS.geographyPlaces(id)),
+      ]);
+      setConstituencies(
+        extractList(constituencyJson, ["data", "constituencies"])
+      );
+      setPlaces(extractList(placeJson, ["data", "places"]));
+    } catch (err) {
+      Alert.alert(
+        "Location unavailable",
+        err instanceof Error ? err.message : "Could not load this county."
+      );
+    }
+  }
+
+  async function selectConstituency(id: string) {
+    setConstituencyId(id);
+    setWardId("");
+    setWards([]);
+    try {
+      const json = await loadOptions(
+        API_ENDPOINTS.geographyWards(id)
+      );
+      setWards(extractList(json, ["data", "wards"]));
+    } catch (err) {
+      Alert.alert(
+        "Location unavailable",
+        err instanceof Error ? err.message : "Could not load wards."
+      );
+    }
+  }
+
+  function toggleAmenity(id: string) {
+    setAmenityIds((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    );
+  }
+
+  async function choosePhotos() {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          "Photo permission needed",
+          "Allow gallery access so you can attach property photos."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: 8,
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setPhotos(result.assets.slice(0, 8));
+      }
+    } catch (err) {
+      Alert.alert(
+        "Could not open gallery",
+        err instanceof Error ? err.message : "Please try again."
+      );
+    }
+  }
+
+  async function uploadPhoto(photo: Photo, index: number) {
+    const form = new FormData();
+    const uri = photo.uri;
+    const name = photo.fileName || `property-photo-${index + 1}.jpg`;
+    const mimeType = photo.mimeType || "image/jpeg";
+
+    if (Platform.OS === "web") {
+      const fileResponse = await fetch(uri);
+      const blob = await fileResponse.blob();
+      form.append("image", blob, name);
+    } else {
+      form.append(
+        "image",
+        { uri, name, type: mimeType } as any
+      );
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}${API_ENDPOINTS.landlordPropertyImages}`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      }
+    );
+
+    const json = await response.json();
+    if (!response.ok) {
+      throw new Error(
+        json.message || `Failed to upload photo ${index + 1}.`
+      );
+    }
+
+    const image = json.image || json.data?.image || json.data;
+    if (!image?.url) {
+      throw new Error(`The server did not return a URL for photo ${index + 1}.`);
+    }
+
+    return {
+      url: image.url,
+      publicId: image.publicId,
+      altText: `${title.trim()} - photo ${index + 1}`,
+      sortOrder: index,
+      isPrimary: index === 0,
+      category: "OTHER",
+    };
+  }
+
+  function validateForm() {
+    if (!title.trim()) return "Enter a property title.";
+    if (!description.trim()) return "Enter a property description.";
+    if (!countyId || !constituencyId || !wardId) {
+      return "Select the county, constituency and ward.";
+    }
+
+    if (purpose === "LONG_STAY") {
+      if (!longStayType) return "Select the long-stay property type.";
+      if (!monthlyRent || Number(monthlyRent) <= 0) {
+        return "Enter a valid monthly rent.";
+      }
+    } else {
+      if (!shortStayType || !stayMode) {
+        return "Select the accommodation type and stay mode.";
+      }
+      if (!rooms || Number(rooms) <= 0) {
+        return "Enter the number of rooms.";
+      }
+      if (!maxGuests || Number(maxGuests) <= 0) {
+        return "Enter the maximum number of guests.";
+      }
+      if (
+        (stayMode === "DAY" || stayMode === "FLEXIBLE") &&
+        (!dayRate || Number(dayRate) <= 0)
+      ) {
+        return "Enter a valid day rate.";
+      }
+      if (
+        (stayMode === "OVERNIGHT" || stayMode === "FLEXIBLE") &&
+        (!nightRate || Number(nightRate) <= 0)
+      ) {
+        return "Enter a valid overnight rate.";
+      }
+      if (
+        stayMode === "DAY_AND_NIGHT" &&
+        (!dayNightRate || Number(dayNightRate) <= 0)
+      ) {
+        return "Enter a valid day-and-night rate.";
+      }
+    }
+
+    return "";
+  }
+
+  async function submitProperty() {
+    const validationMessage = validateForm();
+    if (validationMessage) {
+      Alert.alert("Check your property details", validationMessage);
+      return;
+    }
+
+    if (!token) {
+      Alert.alert("Sign in required", "Please sign in to your landlord account.");
+      router.replace("/landlord/login" as any);
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const uploadedImages = [];
+      for (let index = 0; index < photos.length; index += 1) {
+        uploadedImages.push(await uploadPhoto(photos[index], index));
+      }
+
+      const payload: Record<string, any> = {
+        title: title.trim(),
+        description: description.trim(),
+        purpose,
+        countyId,
+        constituencyId,
+        wardId,
+        placeId: placeId || undefined,
+        furnishing,
+        bedrooms: bedrooms ? Number(bedrooms) : undefined,
+        bathrooms: bathrooms ? Number(bathrooms) : undefined,
+        beds: beds ? Number(beds) : undefined,
+        amenityIds,
+        images: uploadedImages,
+      };
+
+      if (purpose === "LONG_STAY") {
+        payload.longStayType = longStayType;
+        payload.monthlyRent = Number(monthlyRent);
+        if (deposit) payload.deposit = Number(deposit);
+        if (viewingFee) payload.viewingFee = Number(viewingFee);
+        if (serviceCharge) payload.serviceCharge = Number(serviceCharge);
+      } else {
+        payload.shortStayType = shortStayType;
+        payload.stayMode = stayMode;
+        payload.rooms = Number(rooms);
+        payload.maxGuests = Number(maxGuests);
+        if (dayRate) payload.dayRate = Number(dayRate);
+        if (nightRate) payload.nightRate = Number(nightRate);
+        if (dayNightRate) payload.dayNightRate = Number(dayNightRate);
+      }
+
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.landlordProperties}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const json = await response.json();
+      if (!response.ok) {
+        if (response.status === 403) {
+          Alert.alert(
+            "Landlord application not approved",
+            json.message ||
+              "Your landlord application must be approved before you can submit a property.",
+            [
+              { text: "Later", style: "cancel" },
+              {
+                text: "View application",
+                onPress: () =>
+                  router.push("/landlord/application" as any),
+              },
+            ]
+          );
+          return;
+        }
+        throw new Error(json.message || "Property submission failed.");
+      }
+
+      Alert.alert(
+        "Property submitted",
+        "Your property has been submitted to the Makazii administrator for review. It will not appear in the marketplace until approved.",
+        [
+          {
+            text: "View my properties",
+            onPress: () =>
+              router.replace("/landlord/properties" as any),
+          },
+        ]
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not submit the property.";
+      setError(message);
+      Alert.alert("Submission unsuccessful", message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loadingOptions) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loading}>
+          <ActivityIndicator color={LIME} size="large" />
+          <Text style={styles.helper}>Loading property form...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={styles.header}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft color="#F4F6F6" size={21} />
+          </Pressable>
+          <View style={styles.flex}>
+            <Text style={styles.eyebrow}>LANDLORD PORTAL</Text>
+            <Text style={styles.heading}>Submit a property</Text>
+          </View>
+        </View>
+
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.content}
+        >
+          <View style={styles.notice}>
+            <Text style={styles.noticeTitle}>How submission works</Text>
+            <Text style={styles.helper}>
+              Complete the details and submit them to Makazii. Your property
+              will be marked as pending verification until the administrator
+              reviews it.
+            </Text>
+          </View>
+
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+              {!token ? (
+                <Pressable
+                  onPress={() => router.replace("/landlord/login" as any)}
+                >
+                  <Text style={styles.linkText}>Sign in</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          <Text style={styles.sectionTitle}>01 · Property basics</Text>
+          <Field
+            label="Property title *"
+            value={title}
+            onChangeText={setTitle}
+            placeholder="e.g. Modern bedsitter near town"
+          />
+          <Field
+            label="Description *"
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe the property and its features"
+            multiline
+          />
+
+          <ChoiceGroup
+            label="Property purpose *"
+            value={purpose}
+            onChange={setPurpose}
+            options={[
+              ["LONG_STAY", "Long-stay rental"],
+              ["SHORT_STAY", "Short-stay / BnB"],
+            ]}
+          />
+
+          {purpose === "LONG_STAY" ? (
+            <ChoiceGroup
+              label="Long-stay property type *"
+              value={longStayType}
+              onChange={setLongStayType}
+              options={LONG_TYPES}
+            />
+          ) : (
+            <>
+              <ChoiceGroup
+                label="Accommodation type *"
+                value={shortStayType}
+                onChange={setShortStayType}
+                options={SHORT_TYPES}
+              />
+              <ChoiceGroup
+                label="Stay mode *"
+                value={stayMode}
+                onChange={setStayMode}
+                options={STAY_MODES}
+              />
+            </>
+          )}
+
+          <ChoiceGroup
+            label="Furnishing"
+            value={furnishing}
+            onChange={setFurnishing}
+            options={FURNISHING}
+          />
+
+          <Text style={styles.sectionTitle}>02 · Location</Text>
+          <Text style={styles.helper}>
+            Choose the correct location from the available Kenya geography
+            records. Select the county first.
+          </Text>
+          <LocationChoices
+            label="County *"
+            options={counties}
+            value={countyId}
+            onChange={selectCounty}
+          />
+          <LocationChoices
+            label="Constituency *"
+            options={constituencies}
+            value={constituencyId}
+            onChange={selectConstituency}
+            disabled={!countyId}
+          />
+          <LocationChoices
+            label="Ward *"
+            options={wards}
+            value={wardId}
+            onChange={setWardId}
+            disabled={!constituencyId}
+          />
+          <LocationChoices
+            label="Area / place (optional)"
+            options={places}
+            value={placeId}
+            onChange={setPlaceId}
+            disabled={!countyId}
+          />
+
+          <Text style={styles.sectionTitle}>03 · Pricing</Text>
+          {purpose === "LONG_STAY" ? (
+            <>
+              <Field
+                label="Monthly rent (KSh) *"
+                value={monthlyRent}
+                onChangeText={setMonthlyRent}
+                keyboardType="numeric"
+                placeholder="e.g. 15000"
+              />
+              <Field
+                label="Security deposit (KSh)"
+                value={deposit}
+                onChangeText={setDeposit}
+                keyboardType="numeric"
+                placeholder="Optional"
+              />
+              <Field
+                label="Viewing fee (KSh)"
+                value={viewingFee}
+                onChangeText={setViewingFee}
+                keyboardType="numeric"
+                placeholder="Optional"
+              />
+              <Field
+                label="Service charge (KSh)"
+                value={serviceCharge}
+                onChangeText={setServiceCharge}
+                keyboardType="numeric"
+                placeholder="Optional"
+              />
+              <Text style={styles.helper}>
+                Enter any viewing fee or service charge that applies. Confirm
+                the agreed amounts before submitting.
+              </Text>
+            </>
+          ) : (
+            <>
+              {(stayMode === "DAY" || stayMode === "FLEXIBLE") && (
+                <Field
+                  label="Day rate (KSh) *"
+                  value={dayRate}
+                  onChangeText={setDayRate}
+                  keyboardType="numeric"
+                />
+              )}
+              {(stayMode === "OVERNIGHT" || stayMode === "FLEXIBLE") && (
+                <Field
+                  label="Overnight rate (KSh) *"
+                  value={nightRate}
+                  onChangeText={setNightRate}
+                  keyboardType="numeric"
+                />
+              )}
+              {stayMode === "DAY_AND_NIGHT" && (
+                <Field
+                  label="Day-and-night rate (KSh) *"
+                  value={dayNightRate}
+                  onChangeText={setDayNightRate}
+                  keyboardType="numeric"
+                />
+              )}
+            </>
+          )}
+
+          <Text style={styles.sectionTitle}>04 · Rooms and capacity</Text>
+          {purpose === "SHORT_STAY" ? (
+            <>
+              <Field
+                label="Number of rooms *"
+                value={rooms}
+                onChangeText={setRooms}
+                keyboardType="numeric"
+              />
+              <Field
+                label="Maximum guests *"
+                value={maxGuests}
+                onChangeText={setMaxGuests}
+                keyboardType="numeric"
+              />
+              <Field
+                label="Number of beds"
+                value={beds}
+                onChangeText={setBeds}
+                keyboardType="numeric"
+              />
+            </>
+          ) : (
+            <>
+              <Field
+                label="Bedrooms"
+                value={bedrooms}
+                onChangeText={setBedrooms}
+                keyboardType="numeric"
+              />
+              <Field
+                label="Bathrooms"
+                value={bathrooms}
+                onChangeText={setBathrooms}
+                keyboardType="numeric"
+              />
+            </>
+          )}
+
+          <Text style={styles.sectionTitle}>05 · Amenities</Text>
+          <Text style={styles.helper}>
+            Select the amenities available at this property. These options are
+            managed by Makazii.
+          </Text>
+          {amenities.length === 0 ? (
+            <Text style={styles.helper}>No amenities are currently available.</Text>
+          ) : (
+            <View style={styles.choices}>
+              {amenities.map((amenity) => {
+                const selected = amenityIds.includes(amenity.id);
+                return (
+                  <Pressable
+                    key={amenity.id}
+                    onPress={() => toggleAmenity(amenity.id)}
+                    style={[styles.choice, selected && styles.choiceSelected]}
+                  >
+                    {selected ? <Check color="#0B0F10" size={14} /> : null}
+                    <Text
+                      style={[
+                        styles.choiceText,
+                        selected && styles.choiceTextSelected,
+                      ]}
+                    >
+                      {amenity.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
+          <Text style={styles.sectionTitle}>06 · Property photos</Text>
+          <Text style={styles.helper}>
+            Select up to 8 photos from your phone gallery. The first photo will
+            be used as the main image.
+          </Text>
+
+          <Pressable style={styles.photoButton} onPress={choosePhotos}>
+            <ImagePlus color={LIME} size={21} />
+            <Text style={styles.photoButtonText}>
+              {photos.length ? "Change selected photos" : "Choose from gallery"}
+            </Text>
+          </Pressable>
+
+          {photos.length ? (
+            <View style={styles.photoGrid}>
+              {photos.map((photo, index) => (
+                <View key={`${photo.uri}-${index}`} style={styles.photoWrap}>
+                  <Image source={{ uri: photo.uri }} style={styles.photo} />
+                  {index === 0 ? (
+                    <View style={styles.primaryBadge}>
+                      <Text style={styles.primaryText}>MAIN PHOTO</Text>
+                    </View>
+                  ) : null}
+                  <Pressable
+                    style={styles.removePhoto}
+                    onPress={() =>
+                      setPhotos((current) =>
+                        current.filter((_, photoIndex) => photoIndex !== index)
+                      )
+                    }
+                  >
+                    <X color="#FFFFFF" size={15} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <View style={styles.notice}>
+            <Text style={styles.noticeTitle}>Before you submit</Text>
+            <Text style={styles.helper}>
+              Make sure your details, prices and photos are accurate. The
+              administrator must review and approve the property before it
+              becomes visible to customers.
+            </Text>
+          </View>
+
+          <Pressable
+            style={[styles.submitButton, submitting && styles.disabledButton]}
+            onPress={submitProperty}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#0B0F10" />
+            ) : (
+              <Text style={styles.submitText}>Submit for administrator review</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            style={styles.cancelButton}
+            onPress={() => router.back()}
+            disabled={submitting}
+          >
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+async function requestWithToken(path: string, token: string) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || "Could not load form options.");
+  }
+  return json;
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#0B0F10" },
+  flex: { flex: 1 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    backgroundColor: "#14191B",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  eyebrow: {
+    color: "#9CA5A7",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 2,
+  },
+  heading: {
+    color: "#F4F6F6",
+    fontSize: 23,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+  content: { paddingHorizontal: 18, paddingBottom: 42, gap: 17 },
+  loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
+  notice: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#303B32",
+    borderRadius: 17,
+    padding: 15,
+    gap: 7,
+  },
+  noticeTitle: { color: LIME, fontSize: 14, fontWeight: "900" },
+  sectionTitle: {
+    color: "#F4F6F6",
+    fontSize: 17,
+    fontWeight: "900",
+    marginTop: 9,
+  },
+  helper: { color: "#9CA5A7", fontSize: 12, lineHeight: 19 },
+  field: { gap: 8 },
+  label: { color: "#DCE1E2", fontSize: 13, fontWeight: "700" },
+  input: {
+    minHeight: 49,
+    borderWidth: 1,
+    borderColor: "#30383A",
+    borderRadius: 13,
+    paddingHorizontal: 14,
+    color: "#F4F6F6",
+    backgroundColor: "#14191B",
+    fontSize: 14,
+  },
+  multiline: { minHeight: 110, paddingTop: 13 },
+  choices: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  choice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#30383A",
+    borderRadius: 12,
+  },
+  choiceSelected: {
+    backgroundColor: LIME,
+    borderColor: LIME,
+  },
+  choiceText: { color: "#DCE1E2", fontSize: 12, fontWeight: "700" },
+  choiceTextSelected: { color: "#0B0F10" },
+  errorBox: {
+    padding: 13,
+    borderRadius: 13,
+    backgroundColor: "#2A1A1A",
+    borderWidth: 1,
+    borderColor: "#633737",
+    gap: 8,
+  },
+  errorText: { color: "#FFB0B0", fontSize: 13, lineHeight: 19 },
+  linkText: { color: LIME, fontWeight: "800" },
+  photoButton: {
+    minHeight: 54,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "#53623A",
+    backgroundColor: "#171E15",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  photoButtonText: { color: LIME, fontSize: 13, fontWeight: "800" },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  photoWrap: {
+    width: "48%",
+    height: 140,
+    borderRadius: 13,
+    overflow: "hidden",
+    backgroundColor: "#181E20",
+  },
+  photo: { width: "100%", height: "100%" },
+  primaryBadge: {
+    position: "absolute",
+    bottom: 8,
+    left: 7,
+    backgroundColor: LIME,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  primaryText: { color: "#0B0F10", fontSize: 9, fontWeight: "900" },
+  removePhoto: {
+    position: "absolute",
+    top: 7,
+    right: 7,
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    backgroundColor: "#202729",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  submitButton: {
+    minHeight: 54,
+    borderRadius: 15,
+    backgroundColor: LIME,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 15,
+    marginTop: 6,
+  },
+  disabledButton: { opacity: 0.6 },
+  submitText: {
+    color: "#0B0F10",
+    fontSize: 13,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  cancelButton: { alignItems: "center", paddingVertical: 12 },
+  cancelText: { color: "#9CA5A7", fontWeight: "700" },
+});

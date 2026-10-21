@@ -1,0 +1,2267 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import {
+  Bell,
+  BedDouble,
+  Building2,
+  ChevronRight,
+  Heart,
+  Home as HomeIcon,
+  MapPin,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Users,
+} from 'lucide-react-native';
+
+import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
+import { useCustomer } from '@/context/CustomerContext';
+import { useShortlist } from '@/context/ShortlistContext';
+
+const COLORS = {
+  background: '#0B0F10',
+  card: '#14191B',
+  cardSoft: '#181E20',
+  lime: '#D7FF5F',
+  white: '#FFFFFF',
+  muted: '#9CA5A7',
+  border: '#252C2E',
+  dark: '#101415',
+  rose: '#FF6B81',
+};
+
+type PropertyImage = {
+  id?: string;
+  url?: string;
+  altText?: string | null;
+  category?: string | null;
+  sortOrder?: number;
+  isPrimary?: boolean;
+};
+
+type PropertyAmenity = {
+  id?: string;
+  name?: string;
+  category?: string | null;
+};
+
+type Property = {
+  id: string;
+  title: string;
+  description?: string | null;
+
+  purpose?: 'LONG_STAY' | 'SHORT_STAY' | string | null;
+  longStayType?: string | null;
+  shortStayType?: string | null;
+
+  monthlyRent?: number | null;
+  deposit?: number | null;
+  viewingFee?: number | null;
+  serviceCharge?: number | null;
+
+  dayRate?: number | null;
+  nightRate?: number | null;
+  dayNightRate?: number | null;
+  stayMode?: string | null;
+
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  beds?: number | null;
+  maxGuests?: number | null;
+  rooms?: number | null;
+
+  furnishing?: string | null;
+
+  county?: string | null;
+  town?: string | null;
+  area?: string | null;
+
+  place?: {
+    id?: string;
+    name?: string;
+  } | null;
+
+  latitude?: number | null;
+  longitude?: number | null;
+
+  available?: boolean;
+  verified?: boolean;
+
+  images?: PropertyImage[];
+  amenities?: PropertyAmenity[];
+};
+
+type Customer = {
+  name?: string | null;
+  firstName?: string | null;
+  profileImage?: string | null;
+  profilePhoto?: string | null;
+  avatar?: string | null;
+};
+
+type County = {
+  id: string;
+  name: string;
+  code?: string | null;
+  sourceId?: string | null;
+};
+
+const formatMoney = (value?: number | null) => {
+  if (value === null || value === undefined) {
+    return 'Price on request';
+  }
+
+  return `KSh ${Number(value).toLocaleString('en-KE')}`;
+};
+
+const formatPropertyType = (property: Property) => {
+  const rawType =
+    property.purpose === 'SHORT_STAY'
+      ? property.shortStayType
+      : property.longStayType;
+
+  if (!rawType) {
+    return property.purpose === 'SHORT_STAY'
+      ? 'Short Stay'
+      : 'Home';
+  }
+
+  return rawType
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+};
+
+const getLocation = (property: Property) => {
+  const parts = [
+    property.place?.name,
+    property.area,
+    property.town,
+    property.county,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(', ') : 'Kenya';
+};
+
+const getPrimaryImage = (property: Property) => {
+  if (!property.images || property.images.length === 0) {
+    return null;
+  }
+
+  const primary =
+    property.images.find((image) => image.isPrimary) ||
+    [...property.images].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+    )[0];
+
+  return primary?.url || null;
+};
+
+const isShortStay = (property: Property) =>
+  property.purpose === 'SHORT_STAY' ||
+  Boolean(property.shortStayType);
+
+const getPropertyPrice = (property: Property) => {
+  if (isShortStay(property)) {
+    if (property.nightRate) {
+      return `${formatMoney(property.nightRate)}/night`;
+    }
+
+    if (property.dayRate) {
+      return `${formatMoney(property.dayRate)}/day`;
+    }
+
+    if (property.dayNightRate) {
+      return `${formatMoney(property.dayNightRate)}/stay`;
+    }
+
+    return 'Price on request';
+  }
+
+  if (property.monthlyRent) {
+    return `${formatMoney(property.monthlyRent)}/month`;
+  }
+
+  return 'Price on request';
+};
+
+const getPropertyDetails = (property: Property) => {
+  const details: string[] = [];
+
+  if (property.rooms) {
+    details.push(`${property.rooms} rooms`);
+  }
+
+  if (property.bedrooms) {
+    details.push(
+      `${property.bedrooms} ${
+        property.bedrooms === 1 ? 'bed' : 'beds'
+      }`,
+    );
+  }
+
+  if (property.bathrooms) {
+    details.push(
+      `${property.bathrooms} ${
+        property.bathrooms === 1 ? 'bath' : 'baths'
+      }`,
+    );
+  }
+
+  if (property.maxGuests) {
+    details.push(
+      `${property.maxGuests} ${
+        property.maxGuests === 1 ? 'guest' : 'guests'
+      }`,
+    );
+  }
+
+  return details.slice(0, 3);
+};
+
+const getInitials = (customer: Customer | null) => {
+  const name = customer?.name || customer?.firstName || '';
+
+  if (!name.trim()) {
+    return 'M';
+  }
+
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+
+  return initials || 'M';
+};
+
+const getFirstName = (customer: Customer | null) => {
+  if (customer?.firstName) {
+    return customer.firstName;
+  }
+
+  if (customer?.name) {
+    return customer.name.trim().split(/\s+/)[0];
+  }
+
+  return 'there';
+};
+
+function SectionHeader({
+  title,
+  subtitle,
+  onPress,
+}: {
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionHeaderText}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+
+        {subtitle ? (
+          <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+        ) : null}
+      </View>
+
+      {onPress ? (
+        <Pressable
+          onPress={onPress}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.seeAllButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.seeAllText}>See all</Text>
+          <ChevronRight size={16} color={COLORS.lime} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function PropertyImageBox({
+  property,
+  width,
+  height,
+  borderRadius = 22,
+}: {
+  property: Property;
+  width: number;
+  height: number;
+  borderRadius?: number;
+}) {
+  const image = getPrimaryImage(property);
+
+  if (image) {
+    return (
+      <Image
+        source={{ uri: image }}
+        style={{
+          width,
+          height,
+          borderRadius,
+        }}
+        resizeMode="cover"
+      />
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.imagePlaceholder,
+        {
+          width,
+          height,
+          borderRadius,
+        },
+      ]}
+    >
+      <HomeIcon
+        size={34}
+        color={COLORS.lime}
+        strokeWidth={1.6}
+      />
+
+      <Text style={styles.placeholderText}>MAKAZII</Text>
+    </View>
+  );
+}
+
+function PropertyCard({
+  property,
+  onPress,
+  onHeart,
+  isShortStayProperty = false,
+  isShortlisted,
+}: {
+  property: Property;
+  onPress: () => void;
+  onHeart: () => void;
+  isShortStayProperty?: boolean;
+  isShortlisted: boolean;
+}) {
+  const details = getPropertyDetails(property);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.propertyCard,
+        pressed && styles.cardPressed,
+      ]}
+    >
+      <View style={styles.propertyImageWrap}>
+        <PropertyImageBox
+          property={property}
+          width={245}
+          height={180}
+          borderRadius={20}
+        />
+
+        <View style={styles.verifiedBadge}>
+          <ShieldCheck
+            size={13}
+            color={COLORS.dark}
+            strokeWidth={2.5}
+          />
+
+          <Text style={styles.verifiedBadgeText}>
+            Verified
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            onHeart();
+          }}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.heartButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Heart
+            size={19}
+            color={
+              isShortlisted ? COLORS.lime : COLORS.white
+            }
+            fill={
+              isShortlisted
+                ? COLORS.lime
+                : 'transparent'
+            }
+            strokeWidth={2}
+          />
+        </Pressable>
+
+        {isShortStayProperty ? (
+          <View style={styles.shortStayBadge}>
+            <Sparkles
+              size={12}
+              color={COLORS.dark}
+              strokeWidth={2.4}
+            />
+
+            <Text style={styles.shortStayBadgeText}>
+              Short Stay
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.propertyContent}>
+        <Text
+          style={styles.propertyTitle}
+          numberOfLines={1}
+        >
+          {property.title}
+        </Text>
+
+        <View style={styles.locationRow}>
+          <MapPin
+            size={13}
+            color={COLORS.muted}
+            strokeWidth={2}
+          />
+
+          <Text
+            style={styles.locationText}
+            numberOfLines={1}
+          >
+            {getLocation(property)}
+          </Text>
+        </View>
+
+        {details.length > 0 ? (
+          <View style={styles.detailsRow}>
+            {details.map((detail, index) => (
+              <React.Fragment key={`${detail}-${index}`}>
+                {index > 0 ? (
+                  <View style={styles.detailDot} />
+                ) : null}
+
+                <Text style={styles.detailText}>
+                  {detail}
+                </Text>
+              </React.Fragment>
+            ))}
+          </View>
+        ) : null}
+
+        <View style={styles.propertyBottomRow}>
+          <Text style={styles.propertyPrice}>
+            {getPropertyPrice(property)}
+          </Text>
+
+          <Text style={styles.typeLabel}>
+            {formatPropertyType(property)}
+          </Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function EntryCard({
+  title,
+  description,
+  icon,
+  onPress,
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.entryCard,
+        pressed && styles.cardPressed,
+      ]}
+    >
+      <View style={styles.entryIcon}>{icon}</View>
+
+      <View style={styles.entryText}>
+        <Text style={styles.entryTitle}>{title}</Text>
+
+        <Text style={styles.entryDescription}>
+          {description}
+        </Text>
+      </View>
+
+      <View style={styles.entryArrow}>
+        <ChevronRight
+          size={18}
+          color={COLORS.dark}
+          strokeWidth={2.5}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+function CategoryCard({
+  title,
+  subtitle,
+  icon,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.categoryCard,
+        pressed && styles.cardPressed,
+      ]}
+    >
+      <View style={styles.categoryIcon}>{icon}</View>
+
+      <Text style={styles.categoryTitle}>{title}</Text>
+
+      <Text style={styles.categorySubtitle}>
+        {subtitle}
+      </Text>
+    </Pressable>
+  );
+}
+
+const countyImages: Record<string, string> = {
+  Nairobi:
+    'https://images.unsplash.com/photo-1611348586804-61bf6c080437?auto=format&fit=crop&w=900&q=80',
+  Mombasa:
+    'https://images.unsplash.com/photo-1601055078161-8f0c1e8f2f5b?auto=format&fit=crop&w=900&q=80',
+  Kisumu:
+    'https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=900&q=80',
+  Nakuru:
+    'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=900&q=80',
+  Meru:
+    'https://images.unsplash.com/photo-1516026672322-bc52d61a55d5?auto=format&fit=crop&w=900&q=80',
+};
+
+function CountyCard({
+  county,
+  count,
+  onPress,
+}: {
+  county: County;
+  count: number;
+  onPress: () => void;
+}) {
+  const image =
+    countyImages[county.name] ||
+    'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=900&q=80';
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.countyCard,
+        pressed && styles.cardPressed,
+      ]}
+    >
+      <Image
+        source={{ uri: image }}
+        style={styles.countyImage}
+        resizeMode="cover"
+      />
+
+      <View style={styles.countyOverlay} />
+
+      <View style={styles.countyContent}>
+        <Text style={styles.countyName}>
+          {county.name}
+        </Text>
+
+        <Text style={styles.countyCount}>
+          {count} {count === 1 ? 'property' : 'properties'}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+export default function HomeScreen() {
+  const { currentCustomer } = useCustomer();
+  const { isShortlisted, toggleShortlist } = useShortlist();
+
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [counties, setCounties] = useState<County[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [loadingCounties, setLoadingCounties] =
+    useState(true);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [countyError, setCountyError] =
+    useState<string | null>(null);
+
+  const customer = currentCustomer as Customer | null;
+
+  const loadProperties = useCallback(async () => {
+    try {
+      setError(null);
+
+      const response = await fetch(
+        `${API_BASE_URL}/properties`,
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Properties request failed: ${response.status}`,
+        );
+      }
+
+      const result = await response.json();
+
+      const backendProperties = Array.isArray(result?.data)
+        ? result.data
+        : [];
+
+      const visibleProperties = backendProperties.filter(
+        (property: Property) =>
+          property.available === true &&
+          property.verified === true,
+      );
+
+      setProperties(visibleProperties);
+    } catch (requestError) {
+      console.error(
+        'Failed to load MAKAZII properties:',
+        requestError,
+      );
+
+      setError(
+        'We could not load properties right now. Please try again.',
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  const loadCounties = useCallback(async () => {
+    try {
+      setCountyError(null);
+
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.geographyCounties}`,
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Counties request failed: ${response.status}`,
+        );
+      }
+
+      const result = await response.json();
+
+      const backendCounties = Array.isArray(result?.data)
+        ? result.data
+        : [];
+
+      const normalizedCounties: County[] =
+        backendCounties
+          .map((county: any) => ({
+            id: String(county.id),
+            name: String(county.name),
+            code: county.code ?? null,
+            sourceId: county.sourceId ?? null,
+          }))
+          .filter(
+            (county: County) => county.id && county.name,
+          );
+
+      setCounties(normalizedCounties);
+    } catch (requestError) {
+      console.error(
+        'Failed to load MAKAZII counties:',
+        requestError,
+      );
+
+      setCountyError(
+        'We could not load counties right now.',
+      );
+
+      setCounties([]);
+    } finally {
+      setLoadingCounties(false);
+    }
+  }, []);
+
+  const loadHomeData = useCallback(async () => {
+    setLoading(true);
+    setLoadingCounties(true);
+
+    await Promise.all([
+      loadProperties(),
+      loadCounties(),
+    ]);
+  }, [loadProperties, loadCounties]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHomeData();
+    }, [loadHomeData]),
+  );
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+
+    await Promise.all([
+      loadProperties(),
+      loadCounties(),
+    ]);
+
+    setRefreshing(false);
+  }, [loadProperties, loadCounties]);
+
+  const longStayProperties = useMemo(
+    () =>
+      properties.filter(
+        (property) => !isShortStay(property),
+      ),
+    [properties],
+  );
+
+  const shortStayProperties = useMemo(
+    () =>
+      properties.filter((property) =>
+        isShortStay(property),
+      ),
+    [properties],
+  );
+
+  const featuredProperties = useMemo(
+    () => longStayProperties.slice(0, 6),
+    [longStayProperties],
+  );
+
+  const recentlyAdded = useMemo(
+    () => [...properties].reverse().slice(0, 6),
+    [properties],
+  );
+
+  const countyPropertyCounts = useMemo(() => {
+    const grouped = new Map<string, number>();
+
+    properties.forEach((property) => {
+      const countyName = property.county?.trim();
+
+      if (!countyName) {
+        return;
+      }
+
+      grouped.set(
+        countyName.toLowerCase(),
+        (grouped.get(countyName.toLowerCase()) || 0) + 1,
+      );
+    });
+
+    return grouped;
+  }, [properties]);
+
+  const visibleCounties = useMemo(() => {
+    return counties.slice(0, 12);
+  }, [counties]);
+
+  const goToSearch = (purpose?: string) => {
+    if (purpose) {
+      router.push({
+        pathname: '/search',
+        params: { purpose },
+      });
+
+      return;
+    }
+
+    router.push('/search');
+  };
+
+  const openProperty = (property: Property) => {
+    router.push(`/properties/${property.id}`);
+  };
+
+  const openCounty = (county: County) => {
+    router.push({
+      pathname: '/search',
+      params: {
+        county: county.name,
+        countyId: county.id,
+      },
+    });
+  };
+
+  const firstName = getFirstName(customer);
+
+  const avatar =
+    customer?.profileImage ||
+    customer?.profilePhoto ||
+    customer?.avatar ||
+    null;
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refresh}
+            tintColor={COLORS.lime}
+            colors={[COLORS.lime]}
+          />
+        }
+      >
+        {/* =====================================================
+            HEADER
+        ====================================================== */}
+
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.brand}>MAKAZII</Text>
+
+            <Text style={styles.greeting}>
+              Hello, {firstName}
+            </Text>
+          </View>
+
+          <View style={styles.headerActions}>
+            <Pressable
+              onPress={() => router.push('/account')}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.notificationButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Bell
+                size={20}
+                color={COLORS.white}
+                strokeWidth={1.8}
+              />
+
+              <View style={styles.notificationDot} />
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/account')}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.profileButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              {avatar ? (
+                <Image
+                  source={{ uri: avatar }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <Text style={styles.profileInitials}>
+                  {getInitials(customer)}
+                </Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+
+        {/* =====================================================
+            HERO
+        ====================================================== */}
+
+        <View style={styles.hero}>
+          <Text style={styles.heroTitle}>
+            Find your place.
+          </Text>
+
+          <Text style={styles.heroSubtitle}>
+            Homes, stays, hotels and more.
+          </Text>
+
+          <Pressable
+            onPress={() => goToSearch()}
+            style={({ pressed }) => [
+              styles.searchBar,
+              pressed && styles.cardPressed,
+            ]}
+          >
+            <View style={styles.searchIcon}>
+              <Search
+                size={21}
+                color={COLORS.dark}
+                strokeWidth={2.2}
+              />
+            </View>
+
+            <View style={styles.searchTextContainer}>
+              <Text style={styles.searchTitle}>
+                Search homes, areas or counties
+              </Text>
+
+              <Text style={styles.searchSubtitle}>
+                Find your next place in Kenya
+              </Text>
+            </View>
+
+            <ChevronRight
+              size={20}
+              color="#687173"
+              strokeWidth={2}
+            />
+          </Pressable>
+        </View>
+
+        {/* =====================================================
+            PRIMARY ENTRY OPTIONS
+        ====================================================== */}
+
+        <View style={styles.entrySection}>
+          <View style={styles.entryRow}>
+            <EntryCard
+              title="Discover Houses"
+              description="Watch house tours and explore homes"
+              icon={
+                <Building2
+                  size={23}
+                  color={COLORS.dark}
+                  strokeWidth={2}
+                />
+              }
+              onPress={() => router.push('/discover')}
+            />
+
+            <EntryCard
+              title="Explore Listings"
+              description="Search available properties"
+              icon={
+                <Search
+                  size={23}
+                  color={COLORS.dark}
+                  strokeWidth={2}
+                />
+              }
+              onPress={() => goToSearch()}
+            />
+          </View>
+
+          <View style={styles.entryRow}>
+            <EntryCard
+              title="Find a Home"
+              description="Apartments, bedsitters and houses"
+              icon={
+                <HomeIcon
+                  size={23}
+                  color={COLORS.dark}
+                  strokeWidth={2}
+                />
+              }
+              onPress={() => goToSearch('LONG_STAY')}
+            />
+
+            <EntryCard
+              title="Short Stay"
+              description="BNBs, hotels and comfortable stays"
+              icon={
+                <Sparkles
+                  size={23}
+                  color={COLORS.dark}
+                  strokeWidth={2}
+                />
+              }
+              onPress={() => goToSearch('SHORT_STAY')}
+            />
+          </View>
+        </View>
+
+        {/* =====================================================
+            POPULAR SEARCHES
+        ====================================================== */}
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Popular searches"
+            subtitle="Start with what you need"
+          />
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalContent}
+          >
+            {[
+              'Bedsitter',
+              'One Bedroom',
+              'Two Bedroom',
+              'BNB',
+              'Furnished',
+            ].map((search) => (
+              <Pressable
+                key={search}
+                onPress={() =>
+                  router.push({
+                    pathname: '/search',
+                    params: { query: search },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.searchChip,
+                  pressed && styles.cardPressed,
+                ]}
+              >
+                <Search
+                  size={14}
+                  color={COLORS.muted}
+                />
+
+                <Text style={styles.searchChipText}>
+                  {search}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* =====================================================
+            FEATURED HOMES
+        ====================================================== */}
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Featured homes"
+            subtitle={
+              loading
+                ? 'Finding places for you...'
+                : `${featuredProperties.length} available`
+            }
+            onPress={() => goToSearch('LONG_STAY')}
+          />
+
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size="small"
+                color={COLORS.lime}
+              />
+
+              <Text style={styles.loadingText}>
+                Loading homes...
+              </Text>
+            </View>
+          ) : longStayProperties.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <HomeIcon
+                size={25}
+                color={COLORS.muted}
+              />
+
+              <Text style={styles.emptyTitle}>
+                No long-stay homes yet
+              </Text>
+
+              <Text style={styles.emptyText}>
+                New homes will appear here as they become
+                available.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.propertyScroll}
+            >
+              {featuredProperties.map((property) => (
+                <PropertyCard
+                  key={property.id}
+                  property={property}
+                  isShortStayProperty={false}
+                  isShortlisted={isShortlisted(
+                    property.id,
+                  )}
+                  onPress={() => openProperty(property)}
+                  onHeart={() =>
+                    toggleShortlist(property.id)
+                  }
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* =====================================================
+            RECENTLY ADDED
+        ====================================================== */}
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Recently added"
+            subtitle="Fresh places on Makazii"
+            onPress={() => goToSearch()}
+          />
+
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size="small"
+                color={COLORS.lime}
+              />
+
+              <Text style={styles.loadingText}>
+                Loading latest properties...
+              </Text>
+            </View>
+          ) : recentlyAdded.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Building2
+                size={25}
+                color={COLORS.muted}
+              />
+
+              <Text style={styles.emptyTitle}>
+                No properties available
+              </Text>
+
+              <Text style={styles.emptyText}>
+                Check back soon for new listings.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.propertyScroll}
+            >
+              {recentlyAdded.map((property) => (
+                <PropertyCard
+                  key={`recent-${property.id}`}
+                  property={property}
+                  isShortStayProperty={isShortStay(
+                    property,
+                  )}
+                  isShortlisted={isShortlisted(
+                    property.id,
+                  )}
+                  onPress={() => openProperty(property)}
+                  onHeart={() =>
+                    toggleShortlist(property.id)
+                  }
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* =====================================================
+            SHORT STAY
+        ====================================================== */}
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Short stays"
+            subtitle="Stay for a night, day or longer"
+            onPress={() => goToSearch('SHORT_STAY')}
+          />
+
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size="small"
+                color={COLORS.lime}
+              />
+
+              <Text style={styles.loadingText}>
+                Loading short stays...
+              </Text>
+            </View>
+          ) : shortStayProperties.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Sparkles
+                size={25}
+                color={COLORS.muted}
+              />
+
+              <Text style={styles.emptyTitle}>
+                No short stays yet
+              </Text>
+
+              <Text style={styles.emptyText}>
+                BNBs and other short-stay properties will
+                appear here.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.propertyScroll}
+            >
+              {shortStayProperties
+                .slice(0, 6)
+                .map((property) => (
+                  <PropertyCard
+                    key={`short-${property.id}`}
+                    property={property}
+                    isShortStayProperty
+                    isShortlisted={isShortlisted(
+                      property.id,
+                    )}
+                    onPress={() => openProperty(property)}
+                    onHeart={() =>
+                      toggleShortlist(property.id)
+                    }
+                  />
+                ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* =====================================================
+            PROPERTY TYPES
+        ====================================================== */}
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Find your home type"
+            subtitle="Choose what fits your lifestyle"
+          />
+
+          <View style={styles.categoryGrid}>
+            <CategoryCard
+              title="Bedsitter"
+              subtitle="Simple & affordable"
+              icon={
+                <BedDouble
+                  size={22}
+                  color={COLORS.lime}
+                />
+              }
+              onPress={() =>
+                router.push({
+                  pathname: '/search',
+                  params: {
+                    purpose: 'LONG_STAY',
+                    longStayType: 'BEDSITTER',
+                  },
+                })
+              }
+            />
+
+            <CategoryCard
+              title="Apartment"
+              subtitle="Modern living"
+              icon={
+                <Building2
+                  size={22}
+                  color={COLORS.lime}
+                />
+              }
+              onPress={() =>
+                router.push({
+                  pathname: '/search',
+                  params: {
+                    purpose: 'LONG_STAY',
+                    propertyType: 'APARTMENT',
+                  },
+                })
+              }
+            />
+
+            <CategoryCard
+              title="One Bedroom"
+              subtitle="Comfortable space"
+              icon={
+                <HomeIcon
+                  size={22}
+                  color={COLORS.lime}
+                />
+              }
+              onPress={() =>
+                router.push({
+                  pathname: '/search',
+                  params: {
+                    purpose: 'LONG_STAY',
+                    bedrooms: '1',
+                  },
+                })
+              }
+            />
+
+            <CategoryCard
+              title="BNB"
+              subtitle="Short & flexible"
+              icon={
+                <Sparkles
+                  size={22}
+                  color={COLORS.lime}
+                />
+              }
+              onPress={() => goToSearch('SHORT_STAY')}
+            />
+          </View>
+        </View>
+
+        {/* =====================================================
+            EXPLORE KENYA
+        ====================================================== */}
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Explore Kenya"
+            subtitle="Discover available places by county"
+            onPress={() => goToSearch()}
+          />
+
+          {loadingCounties ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator
+                size="small"
+                color={COLORS.lime}
+              />
+
+              <Text style={styles.loadingText}>
+                Loading counties...
+              </Text>
+            </View>
+          ) : countyError ? (
+            <View style={styles.emptyCard}>
+              <MapPin
+                size={25}
+                color={COLORS.muted}
+              />
+
+              <Text style={styles.emptyTitle}>
+                Counties unavailable
+              </Text>
+
+              <Text style={styles.emptyText}>
+                {countyError}
+              </Text>
+
+              <Pressable
+                onPress={loadCounties}
+                style={({ pressed }) => [
+                  styles.retryButton,
+                  pressed && styles.cardPressed,
+                ]}
+              >
+                <Text style={styles.retryText}>
+                  Try again
+                </Text>
+              </Pressable>
+            </View>
+          ) : visibleCounties.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <MapPin
+                size={25}
+                color={COLORS.muted}
+              />
+
+              <Text style={styles.emptyTitle}>
+                Explore Kenya
+              </Text>
+
+              <Text style={styles.emptyText}>
+                Counties will appear here once the
+                geography service is available.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.countyScroll}
+            >
+              {visibleCounties.map((county) => (
+                <CountyCard
+                  key={county.id}
+                  county={county}
+                  count={
+                    countyPropertyCounts.get(
+                      county.name.toLowerCase(),
+                    ) || 0
+                  }
+                  onPress={() => openCounty(county)}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* =====================================================
+            WHY MAKAZII
+        ====================================================== */}
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Why Makazii?"
+            subtitle="A better way to find your place"
+          />
+
+          <View style={styles.trustCard}>
+            <View style={styles.trustItem}>
+              <View style={styles.trustIcon}>
+                <ShieldCheck
+                  size={21}
+                  color={COLORS.lime}
+                />
+              </View>
+
+              <View style={styles.trustText}>
+                <Text style={styles.trustTitle}>
+                  Verified properties
+                </Text>
+
+                <Text style={styles.trustDescription}>
+                  We work to make sure the properties you
+                  discover are verified.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <View style={styles.trustIcon}>
+                <Users
+                  size={21}
+                  color={COLORS.lime}
+                />
+              </View>
+
+              <View style={styles.trustText}>
+                <Text style={styles.trustTitle}>
+                  Guided viewings
+                </Text>
+
+                <Text style={styles.trustDescription}>
+                  Makazii helps coordinate your viewing
+                  journey.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.trustDivider} />
+
+            <View style={styles.trustItem}>
+              <View style={styles.trustIcon}>
+                <Star
+                  size={21}
+                  color={COLORS.lime}
+                />
+              </View>
+
+              <View style={styles.trustText}>
+                <Text style={styles.trustTitle}>
+                  One place to search
+                </Text>
+
+                <Text style={styles.trustDescription}>
+                  Compare homes and short stays without
+                  jumping between platforms.
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* =====================================================
+            ERROR
+        ====================================================== */}
+
+        {error ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorTitle}>
+              Something went wrong
+            </Text>
+
+            <Text style={styles.errorText}>
+              {error}
+            </Text>
+
+            <Pressable
+              onPress={loadProperties}
+              style={({ pressed }) => [
+                styles.retryButton,
+                pressed && styles.cardPressed,
+              ]}
+            >
+              <Text style={styles.retryText}>
+                Try again
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* =====================================================
+            FOOTER
+        ====================================================== */}
+
+        <View style={styles.footer}>
+          <Text style={styles.footerBrand}>MAKAZII</Text>
+
+          <Text style={styles.footerTagline}>
+            FIND YOUR PLACE
+          </Text>
+
+          <Text style={styles.footerText}>
+            Homes, stays and more across Kenya.
+          </Text>
+
+          <View style={styles.footerLine} />
+
+          <Text style={styles.footerCopyright}>
+            © {new Date().getFullYear()} Makazii
+          </Text>
+        </View>
+
+        <View style={styles.bottomSpace} />
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  scrollContent: {
+    paddingTop: 18,
+    paddingHorizontal: 18,
+    paddingBottom: 150,
+  },
+
+  pressed: {
+    opacity: 0.75,
+  },
+
+  cardPressed: {
+    transform: [{ scale: 0.985 }],
+    opacity: 0.92,
+  },
+
+  /* =========================================================
+     HEADER
+  ========================================================== */
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 28,
+  },
+
+  brand: {
+    color: COLORS.lime,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 2.4,
+  },
+
+  greeting: {
+    color: COLORS.white,
+    fontSize: 22,
+    fontWeight: '700',
+    marginTop: 5,
+  },
+
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+
+  notificationButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    position: 'relative',
+  },
+
+  notificationDot: {
+    position: 'absolute',
+    top: 9,
+    right: 9,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.lime,
+    borderWidth: 1.5,
+    borderColor: COLORS.card,
+  },
+
+  profileButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: COLORS.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  profileImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  profileInitials: {
+    color: COLORS.dark,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+
+  /* =========================================================
+     HERO
+  ========================================================== */
+
+  hero: {
+    marginBottom: 20,
+  },
+
+  heroTitle: {
+    color: COLORS.white,
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: '800',
+    letterSpacing: -1.4,
+  },
+
+  heroSubtitle: {
+    color: COLORS.muted,
+    fontSize: 16,
+    marginTop: 7,
+    marginBottom: 20,
+  },
+
+  searchBar: {
+    minHeight: 76,
+    borderRadius: 23,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  searchIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 17,
+    backgroundColor: COLORS.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  searchTextContainer: {
+    flex: 1,
+    marginHorizontal: 13,
+  },
+
+  searchTitle: {
+    color: COLORS.dark,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  searchSubtitle: {
+    color: '#737B7D',
+    fontSize: 12,
+    marginTop: 4,
+  },
+
+  /* =========================================================
+     ENTRY CARDS
+  ========================================================== */
+
+  entrySection: {
+    flexDirection: 'column',
+    gap: 11,
+    marginBottom: 30,
+  },
+
+  entryRow: {
+    flexDirection: 'row',
+    gap: 11,
+  },
+
+  entryCard: {
+    flex: 1,
+    minHeight: 140,
+    borderRadius: 24,
+    backgroundColor: COLORS.lime,
+    padding: 15,
+    justifyContent: 'space-between',
+  },
+
+  entryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: 'rgba(16, 20, 21, 0.09)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  entryText: {
+    marginTop: 12,
+    flex: 1,
+  },
+
+  entryTitle: {
+    color: COLORS.dark,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  entryDescription: {
+    color: '#39403F',
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginTop: 5,
+  },
+
+  entryArrow: {
+    width: 31,
+    height: 31,
+    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+  },
+
+  /* =========================================================
+     SECTIONS
+  ========================================================== */
+
+  section: {
+    marginBottom: 34,
+  },
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+
+  sectionHeaderText: {
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  sectionTitle: {
+    color: COLORS.white,
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+
+  sectionSubtitle: {
+    color: COLORS.muted,
+    fontSize: 12.5,
+    marginTop: 4,
+  },
+
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingBottom: 2,
+  },
+
+  seeAllText: {
+    color: COLORS.lime,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  horizontalContent: {
+    paddingRight: 12,
+    gap: 9,
+  },
+
+  searchChip: {
+    minHeight: 42,
+    paddingHorizontal: 15,
+    borderRadius: 21,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  searchChipText: {
+    color: COLORS.white,
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+
+  /* =========================================================
+     PROPERTY CARDS
+  ========================================================== */
+
+  propertyScroll: {
+    gap: 14,
+    paddingRight: 18,
+  },
+
+  propertyCard: {
+    width: 245,
+    borderRadius: 22,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+
+  propertyImageWrap: {
+    width: 245,
+    height: 180,
+    position: 'relative',
+  },
+
+  imagePlaceholder: {
+    backgroundColor: '#202729',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  placeholderText: {
+    color: COLORS.muted,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginTop: 7,
+  },
+
+  verifiedBadge: {
+    position: 'absolute',
+    left: 11,
+    top: 11,
+    backgroundColor: COLORS.lime,
+    borderRadius: 13,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  verifiedBadgeText: {
+    color: COLORS.dark,
+    fontSize: 9.5,
+    fontWeight: '900',
+  },
+
+  heartButton: {
+    position: 'absolute',
+    right: 11,
+    top: 11,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(11, 15, 16, 0.75)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  shortStayBadge: {
+    position: 'absolute',
+    left: 11,
+    bottom: 11,
+    backgroundColor: COLORS.white,
+    borderRadius: 13,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+
+  shortStayBadgeText: {
+    color: COLORS.dark,
+    fontSize: 9.5,
+    fontWeight: '900',
+  },
+
+  propertyContent: {
+    padding: 14,
+  },
+
+  propertyTitle: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 7,
+    gap: 5,
+  },
+
+  locationText: {
+    flex: 1,
+    color: COLORS.muted,
+    fontSize: 11.5,
+  },
+
+  detailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 9,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+
+  detailText: {
+    color: '#C2C8C9',
+    fontSize: 10.5,
+  },
+
+  detailDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#5F6769',
+  },
+
+  propertyBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 13,
+    gap: 8,
+  },
+
+  propertyPrice: {
+    flex: 1,
+    color: COLORS.lime,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  typeLabel: {
+    color: COLORS.muted,
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+
+  /* =========================================================
+     LOADING / EMPTY
+  ========================================================== */
+
+  loadingContainer: {
+    minHeight: 130,
+    borderRadius: 22,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+
+  loadingText: {
+    color: COLORS.muted,
+    fontSize: 12,
+  },
+
+  emptyCard: {
+    minHeight: 150,
+    borderRadius: 22,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+  },
+
+  emptyTitle: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 10,
+  },
+
+  emptyText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 5,
+  },
+
+  /* =========================================================
+     CATEGORIES
+  ========================================================== */
+
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+
+  categoryCard: {
+    width: '48.5%',
+    minHeight: 132,
+    borderRadius: 21,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 15,
+  },
+
+  categoryIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 15,
+    backgroundColor: COLORS.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 15,
+  },
+
+  categoryTitle: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  categorySubtitle: {
+    color: COLORS.muted,
+    fontSize: 10.5,
+    marginTop: 4,
+  },
+
+  /* =========================================================
+     COUNTIES
+  ========================================================== */
+
+  countyScroll: {
+    gap: 12,
+    paddingRight: 18,
+  },
+
+  countyCard: {
+    width: 180,
+    height: 145,
+    borderRadius: 23,
+    overflow: 'hidden',
+    backgroundColor: COLORS.card,
+  },
+
+  countyImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  countyOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '65%',
+    backgroundColor: 'rgba(11, 15, 16, 0.58)',
+  },
+
+  countyContent: {
+    position: 'absolute',
+    left: 15,
+    right: 15,
+    bottom: 14,
+  },
+
+  countyName: {
+    color: COLORS.white,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  countyCount: {
+    color: COLORS.lime,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+
+  /* =========================================================
+     TRUST
+  ========================================================== */
+
+  trustCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+  },
+
+  trustItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 17,
+  },
+
+  trustIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 15,
+    backgroundColor: COLORS.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  trustText: {
+    flex: 1,
+    marginLeft: 13,
+  },
+
+  trustTitle: {
+    color: COLORS.white,
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+
+  trustDescription: {
+    color: COLORS.muted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+
+  trustDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+
+  /* =========================================================
+     ERROR
+  ========================================================== */
+
+  errorCard: {
+    borderRadius: 22,
+    backgroundColor: '#24191C',
+    borderWidth: 1,
+    borderColor: '#4A292E',
+    padding: 18,
+    marginBottom: 30,
+  },
+
+  errorTitle: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  errorText: {
+    color: '#C8AEB2',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
+  },
+
+  retryButton: {
+    alignSelf: 'flex-start',
+    marginTop: 13,
+    backgroundColor: COLORS.lime,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+  },
+
+  retryText: {
+    color: COLORS.dark,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  /* =========================================================
+     FOOTER
+  ========================================================== */
+
+  footer: {
+    alignItems: 'center',
+    paddingTop: 15,
+    paddingBottom: 20,
+  },
+
+  footerBrand: {
+    color: COLORS.lime,
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+  },
+
+  footerTagline: {
+    color: COLORS.white,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginTop: 5,
+  },
+
+  footerText: {
+    color: COLORS.muted,
+    fontSize: 11,
+    marginTop: 10,
+  },
+
+  footerLine: {
+    width: '45%',
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: 17,
+  },
+
+  footerCopyright: {
+    color: '#667073',
+    fontSize: 10,
+  },
+
+  bottomSpace: {
+    height: 30,
+  },
+});

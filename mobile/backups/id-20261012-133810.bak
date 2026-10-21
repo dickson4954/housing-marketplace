@@ -1,0 +1,593 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import { router, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  RefreshCw,
+  ShieldCheck,
+  XCircle,
+} from 'lucide-react-native';
+
+import { API_BASE_URL } from '@/config/api';
+
+const C = {
+  background: '#0B0F10',
+  card: '#14191B',
+  cardSoft: '#181E20',
+  lime: '#D7FF5F',
+  white: '#FFFFFF',
+  muted: '#9CA5A7',
+  border: '#252C2E',
+  green: '#62D39B',
+  orange: '#FFB45B',
+  red: '#FF7070',
+};
+
+type Application = Record<string, any>;
+
+export default function MarketerApplicationDetailScreen() {
+  const params = useLocalSearchParams<{ id: string | string[] }>();
+  const applicationId = Array.isArray(params.id) ? params.id[0] : params.id;
+
+  const [application, setApplication] = useState<Application | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState('');
+
+  const getToken = async () => {
+    if (typeof window !== 'undefined') {
+      return window.localStorage.getItem('makazii_admin_token');
+    }
+    return SecureStore.getItemAsync('makazii_admin_token');
+  };
+
+  const request = useCallback(async (
+    path: string,
+    method = 'GET',
+    body?: Record<string, unknown>,
+  ) => {
+    const token = await getToken();
+
+    if (!token) {
+      throw new Error('Your admin session has expired. Please sign in again.');
+    }
+
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+
+    let result: any = {};
+    try {
+      result = await response.json();
+    } catch {
+      // The API may return an empty response.
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        result?.message ||
+        result?.error ||
+        `Request failed (${response.status}).`,
+      );
+    }
+
+    return result;
+  }, []);
+
+  const loadApplication = useCallback(async () => {
+    if (!applicationId) {
+      setError('The application ID is missing.');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await request(
+        `/marketer-applications/admin/${encodeURIComponent(applicationId)}`,
+      );
+
+      const item =
+        result?.data?.application ??
+        result?.application ??
+        result?.data;
+
+      if (!item || typeof item !== 'object') {
+        throw new Error('The API returned no application details.');
+      }
+
+      setApplication(item);
+      setReviewMessage(
+        typeof item.requestedChanges === 'string'
+          ? item.requestedChanges
+          : '',
+      );
+      setRejectionReason(
+        typeof item.rejectionReason === 'string'
+          ? item.rejectionReason
+          : '',
+      );
+      setVerificationMessage(
+        typeof item.idVerificationMessage === 'string'
+          ? item.idVerificationMessage
+          : '',
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to load the application.');
+    } finally {
+      setLoading(false);
+    }
+  }, [applicationId, request]);
+
+  useEffect(() => {
+    void loadApplication();
+  }, [loadApplication]);
+
+  const performAction = async (
+    endpoint: string,
+    body: Record<string, unknown>,
+    successMessage: string,
+    returnToList = false,
+  ) => {
+    if (!applicationId || saving) return;
+
+    setSaving(true);
+    setError('');
+
+    try {
+      await request(
+        `/marketer-applications/admin/${encodeURIComponent(applicationId)}/${endpoint}`,
+        'PATCH',
+        body,
+      );
+
+      if (returnToList) {
+        Alert.alert('Success', successMessage, [
+          { text: 'OK', onPress: () => router.back() },
+        ]);
+        return;
+      }
+
+      await loadApplication();
+      Alert.alert('Success', successMessage);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'The action failed.';
+      setError(message);
+      Alert.alert('Action failed', message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const status = String(application?.status ?? 'PENDING');
+  const idStatus = String(application?.idVerificationStatus ?? 'PENDING');
+  const fullName = [
+    application?.firstName,
+    application?.lastName,
+  ].filter(Boolean).join(' ') || 'Marketer applicant';
+
+  const isFinal = status === 'APPROVED' || status === 'REJECTED';
+
+  const formatValue = (value: unknown): string => {
+    if (value === null || value === undefined || value === '') return 'Not provided';
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (Array.isArray(value)) {
+      return value.map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          return item.name ?? item.label ?? JSON.stringify(item);
+        }
+        return String(item);
+      }).join(', ') || 'None';
+    }
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
+
+  const fields: Array<[string, string]> = [
+    ['Phone', formatValue(application?.phone)],
+    ['Email', formatValue(application?.email)],
+    ['ID type', formatValue(application?.idType)],
+    ['ID number', formatValue(application?.idNumber)],
+    ['County', formatValue(application?.geography?.county?.name ?? application?.county)],
+    ['Constituency', formatValue(application?.geography?.constituency?.name ?? application?.constituency)],
+    ['Wards', formatValue(application?.geography?.wards?.map((w: any) => w.name) ?? application?.wardIds)],
+    ['Time in selected areas', formatValue(application?.timeInSelectedAreas)],
+    ['Current occupation', formatValue(application?.currentOccupation)],
+    ['Real estate experience', formatValue(application?.hasRealEstateExperience)],
+    ['Experience areas', formatValue(application?.experienceAreas)],
+    ['Experience duration', formatValue(application?.experienceDuration)],
+    ['Experience description', formatValue(application?.experienceDescription)],
+    ['Working with another agency', formatValue(application?.workingWithAnotherAgency)],
+    ['Current agency', formatValue(application?.currentAgencyName)],
+    ['Motivation', formatValue(application?.motivation)],
+    ['Contribution', formatValue(application?.contribution)],
+    ['Expected properties per month', formatValue(application?.expectedPropertiesPerMonth)],
+    ['Property sources', formatValue(application?.propertySources)],
+    ['Knows landlords', formatValue(application?.knowsLandlords)],
+    ['Approximate landlord count', formatValue(application?.approximateLandlordCount)],
+    ['Communication methods', formatValue(application?.communicationMethods)],
+    ['Availability', formatValue(application?.timeAvailability)],
+    ['Reference name', formatValue(application?.referenceName)],
+    ['Reference phone', formatValue(application?.referencePhone)],
+    ['Reference relationship', formatValue(application?.referenceRelationship)],
+    ['Declaration accepted', formatValue(application?.declarationAccepted)],
+    ['Admin notes', formatValue(application?.adminNotes)],
+    ['Requested changes', formatValue(application?.requestedChanges)],
+    ['Rejection reason', formatValue(application?.rejectionReason)],
+  ];
+
+  const visibleFields = fields.filter(([, value]) => value !== 'Not provided');
+
+  const actionButton = (
+    label: string,
+    onPress: () => void,
+    variant: 'primary' | 'secondary' | 'danger' = 'secondary',
+    disabled = false,
+  ) => (
+    <Pressable
+      key={label}
+      disabled={disabled || saving}
+      onPress={onPress}
+      style={[
+        styles.actionButton,
+        variant === 'primary' && styles.primaryButton,
+        variant === 'danger' && styles.dangerButton,
+        (disabled || saving) && styles.disabledButton,
+      ]}
+    >
+      <Text style={[
+        styles.actionText,
+        variant === 'primary' && styles.primaryText,
+        variant === 'danger' && styles.dangerText,
+      ]}>
+        {saving ? 'Saving…' : label}
+      </Text>
+    </Pressable>
+  );
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.topBar}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={20} color={C.white} />
+        </Pressable>
+        <View style={styles.topTitleWrap}>
+          <Text style={styles.eyebrow}>MAKAZII ADMIN</Text>
+          <Text style={styles.topTitle}>Application review</Text>
+        </View>
+        <Pressable onPress={() => void loadApplication()} style={styles.refreshButton}>
+          <RefreshCw size={18} color={C.lime} />
+        </Pressable>
+      </View>
+
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={C.lime} />
+          <Text style={styles.mutedText}>Loading application…</Text>
+        </View>
+      ) : error && !application ? (
+        <View style={styles.center}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.actionButton} onPress={() => void loadApplication()}>
+            <Text style={styles.actionText}>Try again</Text>
+          </Pressable>
+        </View>
+      ) : application ? (
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.heroCard}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {String(application.firstName ?? '?').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.heroInfo}>
+              <Text style={styles.name}>{fullName}</Text>
+              <Text style={styles.subtle}>{formatValue(application.email)}</Text>
+              <Text style={styles.subtle}>{formatValue(application.phone)}</Text>
+              <Text style={styles.applicationId}>ID: {String(application.id ?? applicationId)}</Text>
+            </View>
+            <View style={styles.statusColumn}>
+              <Text style={styles.statusLabel}>APPLICATION</Text>
+              <Text style={[
+                styles.statusValue,
+                status === 'APPROVED' && { color: C.green },
+                status === 'REJECTED' && { color: C.red },
+                status !== 'APPROVED' && status !== 'REJECTED' && { color: C.orange },
+              ]}>{status.replace(/_/g, ' ')}</Text>
+            </View>
+          </View>
+
+          {error ? <Text style={styles.errorBanner}>{error}</Text> : null}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Identity verification</Text>
+            <View style={styles.verificationCard}>
+              <ShieldCheck size={23} color={idStatus === 'VERIFIED' ? C.green : C.orange} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>DOCUMENT STATUS</Text>
+                <Text style={styles.verificationStatus}>{idStatus.replace(/_/g, ' ')}</Text>
+                {application.idVerificationMessage ? (
+                  <Text style={styles.subtle}>{String(application.idVerificationMessage)}</Text>
+                ) : null}
+              </View>
+            </View>
+
+            <TextInput
+              value={verificationMessage}
+              onChangeText={setVerificationMessage}
+              placeholder="Optional identity verification note"
+              placeholderTextColor={C.muted}
+              style={styles.input}
+              editable={!saving}
+            />
+
+            {!isFinal && (
+              <View style={styles.actionGrid}>
+                {actionButton('Verify ID', () => void performAction(
+                  'id-verification',
+                  { status: 'VERIFIED', message: verificationMessage.trim() },
+                  'Identity documents marked as verified.',
+                ), 'primary', idStatus === 'VERIFIED')}
+                {actionButton('Return ID for review', () => void performAction(
+                  'id-verification',
+                  { status: 'REVIEW', message: verificationMessage.trim() || 'Please review the identity documents.' },
+                  'Identity documents returned for review.',
+                ))}
+                {actionButton('Reject ID', () => {
+                  if (!verificationMessage.trim()) {
+                    Alert.alert('Message required', 'Explain why the identity document is rejected.');
+                    return;
+                  }
+                  void performAction(
+                    'id-verification',
+                    { status: 'REJECTED', message: verificationMessage.trim() },
+                    'Identity documents rejected.',
+                  );
+                }, 'danger')}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Applicant information</Text>
+            <View style={styles.fieldsGrid}>
+              {visibleFields.map(([label, value]) => (
+                <View key={label} style={styles.fieldCard}>
+                  <Text style={styles.fieldLabel}>{label.toUpperCase()}</Text>
+                  <Text selectable style={styles.fieldValue}>{value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {!isFinal && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Review decision</Text>
+              <Text style={styles.helper}>
+                Start review, request corrections, or make a final decision. Actions are saved to the backend.
+              </Text>
+
+              <View style={styles.actionGrid}>
+                {actionButton('Start review', () => void performAction(
+                  'review',
+                  {},
+                  'Application marked as under review.',
+                ), 'secondary', status === 'UNDER_REVIEW')}
+
+                {actionButton('Approve application', () => {
+                  if (idStatus !== 'VERIFIED') {
+                    Alert.alert(
+                      'Identity verification required',
+                      'Verify the applicant’s identity before approving this application.',
+                    );
+                    return;
+                  }
+                  Alert.alert(
+                    'Approve marketer',
+                    `Approve ${fullName} and create their marketer account?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Approve',
+                        onPress: () => void performAction(
+                          'approve',
+                          {},
+                          'Application approved and marketer account created.',
+                          true,
+                        ),
+                      },
+                    ],
+                  );
+                }, 'primary')}
+              </View>
+
+              <Text style={styles.fieldLabel}>REQUEST CHANGES</Text>
+              <TextInput
+                value={reviewMessage}
+                onChangeText={setReviewMessage}
+                placeholder="Explain what the applicant needs to correct"
+                placeholderTextColor={C.muted}
+                style={[styles.input, styles.multiline]}
+                multiline
+                textAlignVertical="top"
+                editable={!saving}
+              />
+              {actionButton('Request changes', () => {
+                if (!reviewMessage.trim()) {
+                  Alert.alert('Message required', 'Explain what the applicant needs to correct.');
+                  return;
+                }
+                void performAction(
+                  'request-changes',
+                  { requestedChanges: reviewMessage.trim() },
+                  'Changes requested from the applicant.',
+                );
+              })}
+
+              <View style={styles.divider} />
+              <Text style={styles.fieldLabel}>REJECTION REASON</Text>
+              <TextInput
+                value={rejectionReason}
+                onChangeText={setRejectionReason}
+                placeholder="Enter a clear reason for rejection"
+                placeholderTextColor={C.muted}
+                style={[styles.input, styles.multiline]}
+                multiline
+                textAlignVertical="top"
+                editable={!saving}
+              />
+              {actionButton('Reject application', () => {
+                if (!rejectionReason.trim()) {
+                  Alert.alert('Reason required', 'Enter a reason for rejecting this application.');
+                  return;
+                }
+                Alert.alert(
+                  'Reject application',
+                  `Reject ${fullName}'s application?`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Reject',
+                      style: 'destructive',
+                      onPress: () => void performAction(
+                        'reject',
+                        { rejectionReason: rejectionReason.trim() },
+                        'Application rejected.',
+                        true,
+                      ),
+                    },
+                  ],
+                );
+              }, 'danger')}
+            </View>
+          )}
+
+          {isFinal && (
+            <View style={styles.finalCard}>
+              {status === 'APPROVED'
+                ? <CheckCircle2 size={22} color={C.green} />
+                : <XCircle size={22} color={C.red} />}
+              <Text style={styles.finalText}>
+                This application is {status.toLowerCase()}. Final application actions are disabled.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      ) : null}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.background },
+  topBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 18, paddingVertical: 14,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  backButton: {
+    width: 42, height: 42, borderRadius: 14,
+    backgroundColor: C.cardSoft, alignItems: 'center', justifyContent: 'center',
+  },
+  refreshButton: {
+    width: 42, height: 42, borderRadius: 14,
+    backgroundColor: C.cardSoft, alignItems: 'center', justifyContent: 'center',
+  },
+  topTitleWrap: { flex: 1 },
+  eyebrow: { color: C.lime, fontSize: 10, fontWeight: '800', letterSpacing: 1.5 },
+  topTitle: { color: C.white, fontSize: 19, fontWeight: '800', marginTop: 3 },
+  content: { padding: 18, paddingBottom: 48, gap: 18 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 14 },
+  mutedText: { color: C.muted, fontSize: 13 },
+  heroCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 13,
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
+    borderRadius: 20, padding: 17, flexWrap: 'wrap',
+  },
+  avatar: {
+    width: 54, height: 54, borderRadius: 18,
+    backgroundColor: C.lime, alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { color: C.background, fontSize: 24, fontWeight: '900' },
+  heroInfo: { flex: 1, minWidth: 155, gap: 3 },
+  name: { color: C.white, fontSize: 20, fontWeight: '800' },
+  subtle: { color: C.muted, fontSize: 12, lineHeight: 18 },
+  applicationId: { color: C.muted, fontSize: 10, marginTop: 4 },
+  statusColumn: { minWidth: 110, gap: 5 },
+  statusLabel: { color: C.muted, fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  statusValue: { color: C.orange, fontSize: 12, fontWeight: '900' },
+  section: {
+    backgroundColor: C.card, borderWidth: 1, borderColor: C.border,
+    borderRadius: 20, padding: 17, gap: 13,
+  },
+  sectionTitle: { color: C.white, fontSize: 17, fontWeight: '800' },
+  verificationCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.cardSoft, borderRadius: 14, padding: 14,
+  },
+  verificationStatus: { color: C.white, fontSize: 15, fontWeight: '800', marginVertical: 3 },
+  fieldLabel: { color: C.muted, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  fieldsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  fieldCard: {
+    flexGrow: 1, flexBasis: 220, backgroundColor: C.cardSoft,
+    borderRadius: 13, padding: 13, gap: 7,
+  },
+  fieldValue: { color: C.white, fontSize: 13, lineHeight: 19 },
+  input: {
+    backgroundColor: C.cardSoft, borderWidth: 1, borderColor: C.border,
+    borderRadius: 13, paddingHorizontal: 13, paddingVertical: 12,
+    color: C.white, fontSize: 13, minHeight: 46,
+  },
+  multiline: { minHeight: 100 },
+  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  actionButton: {
+    minHeight: 44, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.cardSoft, borderWidth: 1, borderColor: C.border,
+  },
+  primaryButton: { backgroundColor: C.lime, borderColor: C.lime },
+  dangerButton: { backgroundColor: '#29191B', borderColor: '#623036' },
+  disabledButton: { opacity: 0.45 },
+  actionText: { color: C.white, fontSize: 12, fontWeight: '800' },
+  primaryText: { color: C.background },
+  dangerText: { color: C.red },
+  helper: { color: C.muted, fontSize: 12, lineHeight: 19 },
+  divider: { height: 1, backgroundColor: C.border, marginVertical: 5 },
+  finalCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 16, borderRadius: 16, backgroundColor: C.card,
+    borderWidth: 1, borderColor: C.border,
+  },
+  finalText: { color: C.white, flex: 1, fontSize: 13, lineHeight: 20 },
+  errorText: { color: C.red, textAlign: 'center', lineHeight: 20 },
+  errorBanner: {
+    color: C.red, backgroundColor: '#29191B', padding: 12,
+    borderRadius: 12, fontSize: 12,
+  },
+});

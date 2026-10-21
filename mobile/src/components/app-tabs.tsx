@@ -1,0 +1,318 @@
+import React from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { router, usePathname } from 'expo-router';
+import {
+  Home,
+  Search,
+  Heart,
+  CalendarDays,
+  UserCircle,
+} from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useShortlist } from '@/context/ShortlistContext';
+
+const COLORS = {
+  background: '#0B0F10',
+  card: '#14191B',
+  activeCircle: '#D7FF5F',
+  activeIcon: '#0B0F10',
+  activeText: '#D7FF5F',
+  inactiveIcon: '#8F999B',
+  inactiveText: '#8F999B',
+  border: '#252C2E',
+  badge: '#D7FF5F',
+  badgeText: '#0B0F10',
+};
+
+type TabItem = {
+  label: string;
+  route: string;
+  icon: React.ComponentType<any>;
+  badge?: number;
+};
+
+const TABS: TabItem[] = [
+  {
+    label: 'Home',
+    route: '/home',
+    icon: Home,
+    badge: 0,
+  },
+  {
+    label: 'Explore',
+    route: '/search',
+    icon: Search,
+    badge: 0,
+  },
+  {
+    label: 'Shortlist',
+    route: '/shortlist',
+    icon: Heart,
+    badge: 0,
+  },
+  {
+    label: 'Visits',
+    route: '/visits',
+    icon: CalendarDays,
+    badge: 0,
+  },
+  {
+    label: 'Account',
+    route: '/account',
+    icon: UserCircle,
+    badge: 0,
+  },
+];
+
+/**
+ * Routes where the floating navigation should NOT appear.
+ *
+ * These screens are full-screen workflows or have their
+ * own bottom actions.
+ */
+const HIDDEN_TAB_ROUTES = [
+  '/viewing',
+  '/checkout',
+];
+
+function isActive(pathname: string, route: string) {
+  if (route === '/home') {
+    return pathname === '/' || pathname === '/home';
+  }
+
+  return pathname.startsWith(route);
+}
+
+function shouldHideTabs(pathname: string) {
+  return HIDDEN_TAB_ROUTES.some((route) =>
+    pathname.startsWith(route),
+  );
+}
+
+export default function AppTabs() {
+  const pathname = usePathname();
+  const { shortlistedIds } = useShortlist();
+
+  if (shouldHideTabs(pathname)) {
+    return null;
+  }
+
+  const handlePress = (route: string) => {
+    if (pathname === route) {
+      return;
+    }
+
+    router.push(route as any);
+  };
+
+  return (
+    <View
+      pointerEvents="box-none"
+      style={styles.overlay}
+    >
+      <SafeAreaView
+        pointerEvents="box-none"
+        edges={['bottom']}
+        style={styles.safeArea}
+      >
+        <View style={styles.navigation}>
+          {TABS.map((tab) => {
+            const active = isActive(
+              pathname,
+              tab.route,
+            );
+
+            const Icon = tab.icon;
+            const badgeCount =
+              tab.route === '/shortlist'
+                ? shortlistedIds.length
+                : (tab.badge ?? 0);
+
+            return (
+              <Pressable
+                key={tab.label}
+                onPress={() =>
+                  handlePress(tab.route)
+                }
+                style={({ pressed }) => [
+                  styles.tab,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.iconCircle,
+                    active &&
+                      styles.activeIconCircle,
+                  ]}
+                >
+                  <Icon
+                    size={23}
+                    strokeWidth={
+                      active ? 2.5 : 2
+                    }
+                    color={
+                      active
+                        ? COLORS.activeIcon
+                        : COLORS.inactiveIcon
+                    }
+                  />
+
+                  {badgeCount > 0 && (
+                      <View style={styles.badge}>
+                        <Text
+                          style={styles.badgeText}
+                        >
+                          {badgeCount > 99
+                            ? '99+'
+                            : badgeCount}
+                        </Text>
+                      </View>
+                    )}
+                </View>
+
+                <Text
+                  style={[
+                    styles.label,
+                    active &&
+                      styles.activeLabel,
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </SafeAreaView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+
+  safeArea: {
+    width: '100%',
+    alignItems: 'center',
+  },
+
+  navigation: {
+    width: '94%',
+    maxWidth: 560,
+    height: 74,
+
+    backgroundColor: COLORS.card,
+
+    borderWidth: 1,
+    borderColor: COLORS.border,
+
+    borderRadius: 38,
+
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+
+    paddingHorizontal: 5,
+
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+
+    elevation: 12,
+
+    marginBottom: 9,
+  },
+
+  tab: {
+    flex: 1,
+    height: 66,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  pressed: {
+    opacity: 0.7,
+
+    transform: [
+      {
+        scale: 0.94,
+      },
+    ],
+  },
+
+  iconCircle: {
+    width: 42,
+    height: 42,
+
+    borderRadius: 21,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    position: 'relative',
+  },
+
+  activeIconCircle: {
+    backgroundColor: COLORS.activeCircle,
+  },
+
+  label: {
+    marginTop: 2,
+
+    fontSize: 9,
+    fontWeight: '600',
+
+    color: COLORS.inactiveText,
+  },
+
+  activeLabel: {
+    color: COLORS.activeText,
+    fontWeight: '800',
+  },
+
+  badge: {
+    position: 'absolute',
+
+    top: -4,
+    right: -5,
+
+    minWidth: 19,
+    height: 19,
+
+    paddingHorizontal: 5,
+
+    borderRadius: 10,
+
+    backgroundColor: COLORS.badge,
+
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    borderWidth: 2,
+    borderColor: COLORS.card,
+  },
+
+  badgeText: {
+    color: COLORS.badgeText,
+
+    fontSize: 8,
+    fontWeight: '900',
+  },
+});

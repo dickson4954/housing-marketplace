@@ -1,0 +1,6 @@
+import React from "react";
+import LandlordPlaceholder from "@/components/landlord/LandlordPlaceholder";
+
+export default function LandlordPropertyDetails() {
+  return <LandlordPlaceholder title="Property details" description="Property information, review progress, and any changes requested by the admin team will appear here." />;
+}

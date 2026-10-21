@@ -1,0 +1,949 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react';
+
+import type { Property } from '@/types/property';
+
+/* ============================================================================
+   VIEWING STATUS
+============================================================================ */
+
+export type ViewingStatus =
+  | 'Pending'
+  | 'Awaiting Marketer'
+  | 'Confirmed'
+  | 'Completed'
+  | 'Cancelled';
+
+/* ============================================================================
+   CUSTOMER REQUEST TYPE
+============================================================================ */
+
+export type ViewingRequestType =
+  | 'view_only'
+  | 'view_and_rent';
+
+/* ============================================================================
+   PAYMENT STATUS
+
+   FRONTEND ONLY FOR NOW
+
+   Later the backend/payment provider will be responsible for confirming
+   whether money was actually received.
+============================================================================ */
+
+export type PaymentStatus =
+  | 'Not Required'
+  | 'Pending'
+  | 'Paid'
+  | 'Failed'
+  | 'Refund Pending'
+  | 'Refunded';
+
+/* ============================================================================
+   MARKETER CONTACT STATUS
+============================================================================ */
+
+export type MarketerContactStatus =
+  | 'Not Assigned'
+  | 'Assigned'
+  | 'Contact Pending'
+  | 'Contacted';
+
+/* ============================================================================
+   VIEWING REQUEST
+============================================================================ */
+
+export type ViewingRequest = {
+  id: string;
+
+  /* --------------------------------------------------------------------------
+     PROPERTY
+  -------------------------------------------------------------------------- */
+
+  propertyId: string;
+  property: Property;
+
+  /* --------------------------------------------------------------------------
+     CUSTOMER
+  -------------------------------------------------------------------------- */
+
+  name: string;
+  phone: string;
+
+  /* --------------------------------------------------------------------------
+     VIEWING APPOINTMENT
+  -------------------------------------------------------------------------- */
+
+  date: string;
+  time: string;
+
+  notes: string;
+
+  /* --------------------------------------------------------------------------
+     CUSTOMER'S CHOICE
+
+     view_only:
+       Customer only wants to view.
+
+     view_and_rent:
+       Customer wants to view and proceed with renting.
+  -------------------------------------------------------------------------- */
+
+  requestType: ViewingRequestType;
+
+  /* --------------------------------------------------------------------------
+     PROPERTY FINANCIAL INFORMATION
+
+     These values come from the property.
+
+     The customer does NOT enter these amounts.
+  -------------------------------------------------------------------------- */
+
+  viewingFee: number;
+  rentAmount: number;
+
+  /* --------------------------------------------------------------------------
+     PAYMENTS
+
+     Viewing fee and rental payment are intentionally separate.
+  -------------------------------------------------------------------------- */
+
+  viewingPaymentStatus: PaymentStatus;
+
+  rentalPaymentStatus: PaymentStatus;
+
+  totalPaid: number;
+
+  /* --------------------------------------------------------------------------
+     VIEWING STATUS
+  -------------------------------------------------------------------------- */
+
+  status: ViewingStatus;
+
+  /* --------------------------------------------------------------------------
+     MARKETER ASSIGNMENT
+  -------------------------------------------------------------------------- */
+
+  assignedTo?: string;
+  assignedToRole?: string;
+  assignedToPhone?: string;
+
+  marketerContactStatus: MarketerContactStatus;
+
+  /* --------------------------------------------------------------------------
+     TIMESTAMPS
+  -------------------------------------------------------------------------- */
+
+  createdAt: string;
+  updatedAt: string;
+
+  /* --------------------------------------------------------------------------
+     FRONTEND DEMO PAYMENT REFERENCE
+
+     This is only a fake reference for the frontend.
+
+     It should NOT be treated as a real payment confirmation.
+
+     Backend will eventually provide the real transaction reference.
+  -------------------------------------------------------------------------- */
+
+  demoPaymentReference?: string;
+};
+
+/* ============================================================================
+   ADD VIEWING REQUEST INPUT
+============================================================================ */
+
+type AddViewingRequestInput = {
+  /* --------------------------------------------------------------------------
+     PROPERTY
+  -------------------------------------------------------------------------- */
+
+  propertyId: string;
+  property: Property;
+
+  /* --------------------------------------------------------------------------
+     CUSTOMER
+  -------------------------------------------------------------------------- */
+
+  name: string;
+  phone: string;
+
+  /* --------------------------------------------------------------------------
+     APPOINTMENT
+  -------------------------------------------------------------------------- */
+
+  date: string;
+  time: string;
+
+  notes: string;
+
+  /* --------------------------------------------------------------------------
+     REQUEST TYPE
+  -------------------------------------------------------------------------- */
+
+  requestType: ViewingRequestType;
+
+  /* --------------------------------------------------------------------------
+     FINANCIAL INFORMATION
+
+     These should normally come directly from the selected property.
+  -------------------------------------------------------------------------- */
+
+  viewingFee: number;
+  rentAmount: number;
+
+  /* --------------------------------------------------------------------------
+     DEMO PAYMENT
+
+     For now we allow the screen to tell the context that the fake payment
+     was successful.
+
+     Later this will come from the backend/payment service instead.
+  -------------------------------------------------------------------------- */
+
+  viewingPaymentStatus?: PaymentStatus;
+  rentalPaymentStatus?: PaymentStatus;
+  totalPaid?: number;
+
+  /* --------------------------------------------------------------------------
+     OPTIONAL ASSIGNMENT
+
+     Normally these will be added later by the admin.
+  -------------------------------------------------------------------------- */
+
+  assignedTo?: string;
+  assignedToRole?: string;
+  assignedToPhone?: string;
+};
+
+/* ============================================================================
+   UPDATE VIEWING DETAILS
+============================================================================ */
+
+type UpdateViewingDetailsInput = {
+  date?: string;
+  time?: string;
+  notes?: string;
+
+  assignedTo?: string;
+  assignedToRole?: string;
+  assignedToPhone?: string;
+
+  marketerContactStatus?: MarketerContactStatus;
+
+  viewingPaymentStatus?: PaymentStatus;
+  rentalPaymentStatus?: PaymentStatus;
+
+  totalPaid?: number;
+};
+
+/* ============================================================================
+   VIEWING CONTEXT TYPE
+============================================================================ */
+
+type ViewingContextType = {
+  viewingRequests: ViewingRequest[];
+
+  addViewingRequest: (
+    request: AddViewingRequestInput,
+  ) => ViewingRequest;
+
+  getViewingRequestById: (
+    id: string,
+  ) => ViewingRequest | undefined;
+
+  getViewingRequestsForProperty: (
+    propertyId: string,
+  ) => ViewingRequest[];
+
+  updateViewingStatus: (
+    id: string,
+    status: ViewingStatus,
+  ) => void;
+
+  updateViewingDetails: (
+    id: string,
+    details: UpdateViewingDetailsInput,
+  ) => void;
+
+  assignMarketer: (
+    id: string,
+    marketer: {
+      name: string;
+      role?: string;
+      phone?: string;
+    },
+  ) => void;
+
+  updateMarketerContactStatus: (
+    id: string,
+    status: MarketerContactStatus,
+  ) => void;
+
+  markViewingPaymentPaid: (
+    id: string,
+  ) => void;
+
+  markRentalPaymentPaid: (
+    id: string,
+  ) => void;
+
+  markRentalRefundPending: (
+    id: string,
+  ) => void;
+
+  markRentalRefunded: (
+    id: string,
+  ) => void;
+
+  cancelViewingRequest: (
+    id: string,
+  ) => void;
+
+  clearViewingRequests: () => void;
+};
+
+/* ============================================================================
+   CONTEXT
+============================================================================ */
+
+const ViewingContext = createContext<
+  ViewingContextType | undefined
+>(undefined);
+
+/* ============================================================================
+   PROVIDER
+============================================================================ */
+
+export function ViewingProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [viewingRequests, setViewingRequests] = useState<
+    ViewingRequest[]
+  >([]);
+
+  /* ========================================================================
+     ADD VIEWING REQUEST
+  ======================================================================== */
+
+  const addViewingRequest = useCallback(
+    (
+      request: AddViewingRequestInput,
+    ): ViewingRequest => {
+      const now = new Date().toISOString();
+
+      /*
+       * ----------------------------------------------------------------------
+       * PAYMENT LOGIC
+       *
+       * FRONTEND DEMO ONLY.
+       *
+       * Every viewing requires the viewing fee.
+       *
+       * If the customer selected view_and_rent, the rental amount is also
+       * included.
+       *
+       * Later the backend will verify these payments.
+       * ----------------------------------------------------------------------
+       */
+
+      const viewingPaymentStatus =
+        request.viewingPaymentStatus ?? 'Paid';
+
+      const rentalPaymentStatus =
+        request.requestType === 'view_and_rent'
+          ? request.rentalPaymentStatus ?? 'Paid'
+          : 'Not Required';
+
+      const totalPaid =
+        request.totalPaid ??
+        (
+          request.viewingFee +
+          (
+            request.requestType === 'view_and_rent'
+              ? request.rentAmount
+              : 0
+          )
+        );
+
+      const newRequest: ViewingRequest = {
+        id: `viewing-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`,
+
+        propertyId: request.propertyId,
+        property: request.property,
+
+        name: request.name,
+        phone: request.phone,
+
+        date: request.date,
+        time: request.time,
+
+        notes: request.notes,
+
+        requestType: request.requestType,
+
+        viewingFee: request.viewingFee,
+        rentAmount: request.rentAmount,
+
+        viewingPaymentStatus,
+        rentalPaymentStatus,
+
+        totalPaid,
+
+        /*
+         * A paid request is now waiting for admin to assign a marketer.
+         */
+        status:
+          viewingPaymentStatus === 'Paid'
+            ? 'Awaiting Marketer'
+            : 'Pending',
+
+        assignedTo: request.assignedTo,
+        assignedToRole: request.assignedToRole,
+        assignedToPhone: request.assignedToPhone,
+
+        marketerContactStatus:
+          request.assignedTo
+            ? 'Assigned'
+            : 'Not Assigned',
+
+        createdAt: now,
+        updatedAt: now,
+
+        /*
+         * Fake frontend payment reference.
+         *
+         * This will eventually be replaced by the real payment transaction
+         * reference returned by the backend/payment provider.
+         */
+        demoPaymentReference:
+          viewingPaymentStatus === 'Paid'
+            ? `DEMO-${Date.now()}`
+            : undefined,
+      };
+
+      setViewingRequests((current) => [
+        newRequest,
+        ...current,
+      ]);
+
+      return newRequest;
+    },
+    [],
+  );
+
+  /* ========================================================================
+     GET VIEWING BY ID
+  ======================================================================== */
+
+  const getViewingRequestById = useCallback(
+    (id: string) => {
+      return viewingRequests.find(
+        (request) => request.id === id,
+      );
+    },
+    [viewingRequests],
+  );
+
+  /* ========================================================================
+     GET VIEWINGS FOR PROPERTY
+  ======================================================================== */
+
+  const getViewingRequestsForProperty = useCallback(
+    (propertyId: string) => {
+      return viewingRequests.filter(
+        (request) =>
+          request.propertyId === propertyId,
+      );
+    },
+    [viewingRequests],
+  );
+
+  /* ========================================================================
+     UPDATE VIEWING STATUS
+  ======================================================================== */
+
+  const updateViewingStatus = useCallback(
+    (
+      id: string,
+      status: ViewingStatus,
+    ) => {
+      setViewingRequests((current) =>
+        current.map((request) =>
+          request.id === id
+            ? {
+                ...request,
+                status,
+                updatedAt:
+                  new Date().toISOString(),
+              }
+            : request,
+        ),
+      );
+    },
+    [],
+  );
+
+  /* ========================================================================
+     UPDATE VIEWING DETAILS
+  ======================================================================== */
+
+  const updateViewingDetails = useCallback(
+    (
+      id: string,
+      details: UpdateViewingDetailsInput,
+    ) => {
+      setViewingRequests((current) =>
+        current.map((request) => {
+          if (request.id !== id) {
+            return request;
+          }
+
+          return {
+            ...request,
+
+            ...(details.date !== undefined
+              ? {
+                  date: details.date,
+                }
+              : {}),
+
+            ...(details.time !== undefined
+              ? {
+                  time: details.time,
+                }
+              : {}),
+
+            ...(details.notes !== undefined
+              ? {
+                  notes: details.notes,
+                }
+              : {}),
+
+            ...(details.assignedTo !== undefined
+              ? {
+                  assignedTo:
+                    details.assignedTo,
+                }
+              : {}),
+
+            ...(details.assignedToRole !== undefined
+              ? {
+                  assignedToRole:
+                    details.assignedToRole,
+                }
+              : {}),
+
+            ...(details.assignedToPhone !== undefined
+              ? {
+                  assignedToPhone:
+                    details.assignedToPhone,
+                }
+              : {}),
+
+            ...(details.marketerContactStatus !==
+            undefined
+              ? {
+                  marketerContactStatus:
+                    details.marketerContactStatus,
+                }
+              : {}),
+
+            ...(details.viewingPaymentStatus !==
+            undefined
+              ? {
+                  viewingPaymentStatus:
+                    details.viewingPaymentStatus,
+                }
+              : {}),
+
+            ...(details.rentalPaymentStatus !==
+            undefined
+              ? {
+                  rentalPaymentStatus:
+                    details.rentalPaymentStatus,
+                }
+              : {}),
+
+            ...(details.totalPaid !== undefined
+              ? {
+                  totalPaid:
+                    details.totalPaid,
+                }
+              : {}),
+
+            updatedAt:
+              new Date().toISOString(),
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  /* ========================================================================
+     ASSIGN MARKETER
+  ======================================================================== */
+
+  const assignMarketer = useCallback(
+    (
+      id: string,
+      marketer: {
+        name: string;
+        role?: string;
+        phone?: string;
+      },
+    ) => {
+      setViewingRequests((current) =>
+        current.map((request) =>
+          request.id === id
+            ? {
+                ...request,
+
+                assignedTo:
+                  marketer.name,
+
+                assignedToRole:
+                  marketer.role ??
+                  'MAKAZII Marketer',
+
+                assignedToPhone:
+                  marketer.phone,
+
+                marketerContactStatus:
+                  'Contact Pending',
+
+                status:
+                  request.viewingPaymentStatus ===
+                  'Paid'
+                    ? 'Confirmed'
+                    : request.status,
+
+                updatedAt:
+                  new Date().toISOString(),
+              }
+            : request,
+        ),
+      );
+    },
+    [],
+  );
+
+  /* ========================================================================
+     MARKETER CONTACT STATUS
+  ======================================================================== */
+
+  const updateMarketerContactStatus =
+    useCallback(
+      (
+        id: string,
+        status: MarketerContactStatus,
+      ) => {
+        setViewingRequests((current) =>
+          current.map((request) =>
+            request.id === id
+              ? {
+                  ...request,
+
+                  marketerContactStatus:
+                    status,
+
+                  updatedAt:
+                    new Date().toISOString(),
+                }
+              : request,
+          ),
+        );
+      },
+      [],
+    );
+
+  /* ========================================================================
+     VIEWING PAYMENT PAID
+  ======================================================================== */
+
+  const markViewingPaymentPaid =
+    useCallback(
+      (id: string) => {
+        setViewingRequests((current) =>
+          current.map((request) => {
+            if (request.id !== id) {
+              return request;
+            }
+
+            const rentalPaid =
+              request.rentalPaymentStatus ===
+              'Paid';
+
+            const totalPaid =
+              request.viewingFee +
+              (
+                rentalPaid
+                  ? request.rentAmount
+                  : 0
+              );
+
+            return {
+              ...request,
+
+              viewingPaymentStatus:
+                'Paid',
+
+              totalPaid,
+
+              status:
+                request.assignedTo
+                  ? 'Confirmed'
+                  : 'Awaiting Marketer',
+
+              demoPaymentReference:
+                request.demoPaymentReference ??
+                `DEMO-${Date.now()}`,
+
+              updatedAt:
+                new Date().toISOString(),
+            };
+          }),
+        );
+      },
+      [],
+    );
+
+  /* ========================================================================
+     RENTAL PAYMENT PAID
+  ======================================================================== */
+
+  const markRentalPaymentPaid =
+    useCallback(
+      (id: string) => {
+        setViewingRequests((current) =>
+          current.map((request) => {
+            if (request.id !== id) {
+              return request;
+            }
+
+            const viewingPaid =
+              request.viewingPaymentStatus ===
+              'Paid';
+
+            return {
+              ...request,
+
+              rentalPaymentStatus:
+                'Paid',
+
+              totalPaid:
+                request.viewingFee +
+                request.rentAmount,
+
+              status:
+                viewingPaid
+                  ? request.assignedTo
+                    ? 'Confirmed'
+                    : 'Awaiting Marketer'
+                  : request.status,
+
+              updatedAt:
+                new Date().toISOString(),
+            };
+          }),
+        );
+      },
+      [],
+    );
+
+  /* ========================================================================
+     RENTAL REFUND PENDING
+  ======================================================================== */
+
+  const markRentalRefundPending =
+    useCallback(
+      (id: string) => {
+        setViewingRequests((current) =>
+          current.map((request) =>
+            request.id === id
+              ? {
+                  ...request,
+
+                  rentalPaymentStatus:
+                    'Refund Pending',
+
+                  /*
+                   * Viewing fee remains paid.
+                   */
+                  totalPaid:
+                    request.viewingFee,
+
+                  updatedAt:
+                    new Date().toISOString(),
+                }
+              : request,
+          ),
+        );
+      },
+      [],
+    );
+
+  /* ========================================================================
+     RENTAL REFUNDED
+  ======================================================================== */
+
+  const markRentalRefunded =
+    useCallback(
+      (id: string) => {
+        setViewingRequests((current) =>
+          current.map((request) =>
+            request.id === id
+              ? {
+                  ...request,
+
+                  rentalPaymentStatus:
+                    'Refunded',
+
+                  /*
+                   * Only the viewing fee remains retained.
+                   */
+                  totalPaid:
+                    request.viewingFee,
+
+                  updatedAt:
+                    new Date().toISOString(),
+                }
+              : request,
+          ),
+        );
+      },
+      [],
+    );
+
+  /* ========================================================================
+     CANCEL VIEWING
+  ======================================================================== */
+
+  const cancelViewingRequest =
+    useCallback(
+      (id: string) => {
+        setViewingRequests((current) =>
+          current.map((request) =>
+            request.id === id
+              ? {
+                  ...request,
+
+                  status: 'Cancelled',
+
+                  updatedAt:
+                    new Date().toISOString(),
+                }
+              : request,
+          ),
+        );
+      },
+      [],
+    );
+
+  /* ========================================================================
+     CLEAR ALL
+  ======================================================================== */
+
+  const clearViewingRequests =
+    useCallback(() => {
+      setViewingRequests([]);
+    }, []);
+
+  /* ========================================================================
+     CONTEXT VALUE
+  ======================================================================== */
+
+  const value = useMemo(
+    () => ({
+      viewingRequests,
+
+      addViewingRequest,
+
+      getViewingRequestById,
+
+      getViewingRequestsForProperty,
+
+      updateViewingStatus,
+
+      updateViewingDetails,
+
+      assignMarketer,
+
+      updateMarketerContactStatus,
+
+      markViewingPaymentPaid,
+
+      markRentalPaymentPaid,
+
+      markRentalRefundPending,
+
+      markRentalRefunded,
+
+      cancelViewingRequest,
+
+      clearViewingRequests,
+    }),
+    [
+      viewingRequests,
+
+      addViewingRequest,
+
+      getViewingRequestById,
+
+      getViewingRequestsForProperty,
+
+      updateViewingStatus,
+
+      updateViewingDetails,
+
+      assignMarketer,
+
+      updateMarketerContactStatus,
+
+      markViewingPaymentPaid,
+
+      markRentalPaymentPaid,
+
+      markRentalRefundPending,
+
+      markRentalRefunded,
+
+      cancelViewingRequest,
+
+      clearViewingRequests,
+    ],
+  );
+
+  return (
+    <ViewingContext.Provider value={value}>
+      {children}
+    </ViewingContext.Provider>
+  );
+}
+
+/* ============================================================================
+   HOOK
+============================================================================ */
+
+export function useViewing(): ViewingContextType {
+  const context = useContext(ViewingContext);
+
+  if (!context) {
+    throw new Error(
+      'useViewing must be used inside a ViewingProvider',
+    );
+  }
+
+  return context;
+}

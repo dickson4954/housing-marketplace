@@ -1,0 +1,3197 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import * as SecureStore from "expo-secure-store";
+import { router } from "expo-router";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Eye,
+  FileText,
+  Home,
+  Mail,
+  MapPin,
+  Menu,
+  Phone,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  UserRound,
+  X,
+  XCircle,
+} from "lucide-react-native";
+
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  "http://localhost:5000/api";
+
+const ADMIN_TOKEN_KEY = "makazii_admin_token";
+
+type ViewingStatus =
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "AWAITING_ASSIGNMENT"
+  | "ASSIGNED"
+  | "CONFIRMED"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "DECLINED"
+  | string;
+
+type PaymentStatus = string;
+
+type Person = {
+  id?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  isActive?: boolean | null;
+  accountStatus?: string | null;
+};
+
+type Marketer = {
+  id?: string | null;
+  user?: Person | null;
+};
+
+type PropertyImage = {
+  id?: string | null;
+  url?: string | null;
+  altText?: string | null;
+  sortOrder?: number | null;
+  isPrimary?: boolean | null;
+};
+
+type Property = {
+  id: string;
+  title?: string | null;
+  description?: string | null;
+  purpose?: string | null;
+  longStayType?: string | null;
+  monthlyRent?: number | null;
+  viewingFee?: number | null;
+  deposit?: number | null;
+  serviceCharge?: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  furnishing?: string | null;
+  available?: boolean | null;
+  verified?: boolean | null;
+  status?: string | null;
+  county?: string | null;
+  town?: string | null;
+  area?: string | null;
+  countyRelation?: {
+    id?: string | null;
+    name?: string | null;
+  } | null;
+  constituency?: {
+    id?: string | null;
+    name?: string | null;
+  } | null;
+  ward?: {
+    id?: string | null;
+    name?: string | null;
+  } | null;
+  marketer?: Marketer | null;
+  images?: PropertyImage[];
+};
+
+type Payment = {
+  id: string;
+  amount?: number | null;
+  currency?: string | null;
+  method?: string | null;
+  provider?: string | null;
+  reference?: string | null;
+  providerReference?: string | null;
+  status?: PaymentStatus | null;
+  paidAt?: string | null;
+  failedAt?: string | null;
+  failureReason?: string | null;
+  createdAt?: string | null;
+};
+
+type StatusHistory = {
+  id: string;
+  status?: ViewingStatus | null;
+  note?: string | null;
+  changedById?: string | null;
+  createdAt?: string | null;
+};
+
+type Viewing = {
+  id: string;
+  propertyId: string;
+  renterId: string;
+
+  requestedDate?: string | null;
+  preferredTime?: string | null;
+  notes?: string | null;
+
+  status: ViewingStatus;
+
+  requestedBy?: string | null;
+
+  assignedMarketerId?: string | null;
+  assignedAt?: string | null;
+  confirmedAt?: string | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+
+  createdAt?: string | null;
+  updatedAt?: string | null;
+
+  renter?: Person | null;
+  property?: Property | null;
+  assignedMarketer?: Marketer | null;
+  payments?: Payment[];
+  statusHistory?: StatusHistory[];
+};
+
+type ApiResponse = {
+  success?: boolean;
+  message?: string;
+  data?: {
+    viewings?: Viewing[];
+    viewing?: Viewing;
+    count?: number;
+  };
+};
+
+type Filter =
+  | "ALL"
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "AWAITING_ASSIGNMENT"
+  | "ASSIGNED"
+  | "CONFIRMED"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "DECLINED";
+
+const FILTERS: Array<{
+  key: Filter;
+  label: string;
+}> = [
+  { key: "ALL", label: "All" },
+  { key: "PAID", label: "Paid" },
+  { key: "ASSIGNED", label: "Assigned" },
+  { key: "CONFIRMED", label: "Confirmed" },
+  { key: "COMPLETED", label: "Completed" },
+  { key: "PENDING_PAYMENT", label: "Pending payment" },
+  { key: "CANCELLED", label: "Cancelled" },
+  { key: "DECLINED", label: "Declined" },
+];
+
+function getPersonName(person?: Person | null) {
+  if (!person) {
+    return "—";
+  }
+
+  const name = [person.firstName, person.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return name || "Unnamed user";
+}
+
+function getMarketerName(marketer?: Marketer | null) {
+  return getPersonName(marketer?.user);
+}
+
+function getPropertyLocation(property?: Property | null) {
+  if (!property) {
+    return "Location unavailable";
+  }
+
+  const parts = [
+    property.area,
+    property.town,
+    property.ward?.name,
+    property.constituency?.name,
+    property.countyRelation?.name || property.county,
+  ].filter(
+    (value): value is string =>
+      typeof value === "string" && value.trim().length > 0
+  );
+
+  return parts.length ? parts.slice(0, 3).join(", ") : "Location unavailable";
+}
+
+function getPropertyImage(property?: Property | null) {
+  return property?.images?.[0]?.url || "";
+}
+
+function formatMoney(
+  amount?: number | null,
+  currency = "KES"
+) {
+  if (amount === null || amount === undefined) {
+    return "—";
+  }
+
+  return `${currency} ${Number(amount).toLocaleString("en-KE")}`;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-KE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("en-KE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatStatus(status: ViewingStatus) {
+  switch (status) {
+    case "PENDING_PAYMENT":
+      return "Pending payment";
+    case "PAID":
+      return "Paid";
+    case "AWAITING_ASSIGNMENT":
+      return "Awaiting assignment";
+    case "ASSIGNED":
+      return "Assigned";
+    case "CONFIRMED":
+      return "Confirmed";
+    case "COMPLETED":
+      return "Completed";
+    case "CANCELLED":
+      return "Cancelled";
+    case "DECLINED":
+      return "Declined";
+    default:
+      return status.replaceAll("_", " ");
+  }
+}
+
+function getStatusDescription(status: ViewingStatus) {
+  switch (status) {
+    case "PENDING_PAYMENT":
+      return "Customer has not completed the viewing fee payment.";
+    case "PAID":
+      return "Payment is confirmed and the viewing is ready for admin approval.";
+    case "AWAITING_ASSIGNMENT":
+      return "The viewing is waiting for representative assignment.";
+    case "ASSIGNED":
+      return "The source marketer has been assigned.";
+    case "CONFIRMED":
+      return "The assigned marketer has confirmed the viewing.";
+    case "COMPLETED":
+      return "The viewing has been completed.";
+    case "CANCELLED":
+      return "The viewing has been cancelled.";
+    case "DECLINED":
+      return "The assigned representative declined the viewing.";
+    default:
+      return "Viewing status";
+  }
+}
+
+function getStatusTone(status: ViewingStatus) {
+  switch (status) {
+    case "PAID":
+      return "paid";
+    case "ASSIGNED":
+      return "assigned";
+    case "CONFIRMED":
+      return "confirmed";
+    case "COMPLETED":
+      return "completed";
+    case "CANCELLED":
+    case "DECLINED":
+      return "danger";
+    case "PENDING_PAYMENT":
+      return "pending";
+    default:
+      return "neutral";
+  }
+}
+
+function getPrimaryPayment(viewing?: Viewing | null) {
+  return viewing?.payments?.[0] || null;
+}
+
+async function apiRequest<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = await SecureStore.getItemAsync(ADMIN_TOKEN_KEY);
+
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers,
+  });
+
+  const text = await response.text();
+
+  let body: T;
+
+  try {
+    body = text ? (JSON.parse(text) as T) : ({} as T);
+  } catch {
+    body = {} as T;
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof body === "object" &&
+      body !== null &&
+      "message" in body &&
+      typeof (body as { message?: unknown }).message === "string"
+        ? (body as { message: string }).message
+        : `Request failed with status ${response.status}`;
+
+    throw new Error(message);
+  }
+
+  return body;
+}
+
+function SidebarContent({
+  navigate,
+}: {
+  navigate: (path: string) => void;
+}) {
+  const items = [
+    { label: "Dashboard", path: "/admin/dashboard", icon: Home },
+    { label: "Properties", path: "/admin/properties", icon: FileText },
+    { label: "Verification", path: "/admin/verification", icon: ShieldCheck },
+    { label: "Viewings", path: "/admin/viewings", icon: Eye },
+    { label: "Landlords", path: "/admin/landlords", icon: UserRound },
+    { label: "Marketers", path: "/admin/marketers", icon: UserRound },
+    { label: "Customers", path: "/admin/users", icon: UserRound },
+    { label: "Settings", path: "/admin/settings", icon: ShieldCheck },
+  ];
+
+  return (
+    <View style={styles.sidebarInner}>
+      <View style={styles.logoWrap}>
+        <View style={styles.logoMark}>
+          <Text style={styles.logoMarkText}>M</Text>
+        </View>
+
+        <View>
+          <Text style={styles.logoTitle}>MAKAZII</Text>
+          <Text style={styles.logoSubtitle}>ADMIN PORTAL</Text>
+        </View>
+      </View>
+
+      <Text style={styles.navHeading}>MANAGEMENT</Text>
+
+      <View style={styles.navList}>
+        {items.map((item) => {
+          const Icon = item.icon;
+          const active = item.path === "/admin/viewings";
+
+          return (
+            <Pressable
+              key={item.path}
+              onPress={() => navigate(item.path)}
+              style={[
+                styles.navItem,
+                active && styles.navItemActive,
+              ]}
+            >
+              <Icon
+                size={18}
+                color={active ? "#0B0F10" : "#9CA5A7"}
+              />
+
+              <Text
+                style={[
+                  styles.navText,
+                  active && styles.navTextActive,
+                ]}
+              >
+                {item.label}
+              </Text>
+
+              {active && <View style={styles.navActiveDot} />}
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.sidebarBottom}>
+        <Text style={styles.sidebarBottomTitle}>Viewing workflow</Text>
+        <Text style={styles.sidebarBottomText}>
+          Customer payment is reviewed here before the property source
+          representative is assigned.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function StatusBadge({
+  status,
+}: {
+  status: ViewingStatus;
+}) {
+  const tone = getStatusTone(status);
+
+  return (
+    <View style={[styles.statusBadge, styles[`status_${tone}`]]}>
+      {status === "PAID" && (
+        <CheckCircle2 size={13} color="#0B0F10" />
+      )}
+
+      {status === "ASSIGNED" && (
+        <ShieldCheck size={13} color="#0B0F10" />
+      )}
+
+      {status === "CONFIRMED" && (
+        <CheckCircle2 size={13} color="#0B0F10" />
+      )}
+
+      {status === "COMPLETED" && (
+        <CheckCircle2 size={13} color="#0B0F10" />
+      )}
+
+      {status === "PENDING_PAYMENT" && (
+        <Clock3 size={13} color="#0B0F10" />
+      )}
+
+      {(status === "CANCELLED" || status === "DECLINED") && (
+        <XCircle size={13} color="#0B0F10" />
+      )}
+
+      <Text style={styles.statusBadgeText}>
+        {formatStatus(status)}
+      </Text>
+    </View>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  onPress,
+}: {
+  label: string;
+  value: number;
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={styles.statCard}
+    >
+      <View style={styles.statIcon}>
+        <Icon size={18} color="#D7FF5F" />
+      </View>
+
+      <View style={styles.statContent}>
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function DetailRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.detailRow}>
+      <View style={styles.detailIcon}>
+        <Icon size={16} color="#9CA5A7" />
+      </View>
+
+      <View style={styles.detailTextWrap}>
+        <Text style={styles.detailLabel}>{label}</Text>
+        <Text style={styles.detailValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+export default function AdminViewingsScreen() {
+  const [viewings, setViewings] = useState<Viewing[]>([]);
+  const [selectedViewing, setSelectedViewing] =
+    useState<Viewing | null>(null);
+
+  const [filter, setFilter] = useState<Filter>("ALL");
+  const [search, setSearch] = useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const loadViewings = useCallback(async () => {
+    try {
+      setError(null);
+
+      const response = await apiRequest<ApiResponse>(
+        "/admin/viewings"
+      );
+
+      setViewings(response.data?.viewings || []);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to load viewings";
+
+      setError(message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadViewings();
+  }, [loadViewings]);
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadViewings();
+  }, [loadViewings]);
+
+  const openViewing = useCallback(async (viewing: Viewing) => {
+    setSelectedViewing(viewing);
+    setDetailLoading(true);
+
+    try {
+      const response = await apiRequest<ApiResponse>(
+        `/admin/viewings/${viewing.id}`
+      );
+
+      if (response.data?.viewing) {
+        setSelectedViewing(response.data.viewing);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to load viewing details";
+
+      Alert.alert("Unable to load viewing", message);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const approveViewing = useCallback(async () => {
+    if (!selectedViewing) {
+      return;
+    }
+
+    if (selectedViewing.status !== "PAID") {
+      Alert.alert(
+        "Cannot approve",
+        "Only paid viewing requests can be approved."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Approve viewing?",
+      "The backend will automatically assign the marketer who sourced this property. The customer will receive the representative contact, and the marketer will receive the customer contact so they can coordinate the viewing.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Approve",
+          onPress: async () => {
+            try {
+              setApproving(true);
+
+              const response =
+                await apiRequest<ApiResponse>(
+                  `/admin/viewings/${selectedViewing.id}/approve`,
+                  {
+                    method: "POST",
+                  }
+                );
+
+              const updated =
+                response.data?.viewing;
+
+              if (updated) {
+                setSelectedViewing(updated);
+
+                setViewings((current) =>
+                  current.map((item) =>
+                    item.id === updated.id
+                      ? {
+                          ...item,
+                          ...updated,
+                        }
+                      : item
+                  )
+                );
+              } else {
+                await loadViewings();
+              }
+
+              Alert.alert(
+                "Viewing approved",
+                response.message ||
+                  "The viewing has been approved and the source marketer has been assigned."
+              );
+            } catch (err) {
+              const message =
+                err instanceof Error
+                  ? err.message
+                  : "Failed to approve viewing";
+
+              Alert.alert(
+                "Approval failed",
+                message
+              );
+            } finally {
+              setApproving(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [selectedViewing, loadViewings]);
+
+  const counts = useMemo(() => {
+    const count = (status: string) =>
+      viewings.filter(
+        (item) => item.status === status
+      ).length;
+
+    return {
+      total: viewings.length,
+      paid: count("PAID"),
+      assigned: count("ASSIGNED"),
+      confirmed: count("CONFIRMED"),
+      completed: count("COMPLETED"),
+      pendingPayment: count("PENDING_PAYMENT"),
+      cancelled: count("CANCELLED"),
+      declined: count("DECLINED"),
+    };
+  }, [viewings]);
+
+  const filteredViewings = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return viewings.filter((viewing) => {
+      const matchesFilter =
+        filter === "ALL" ||
+        viewing.status === filter;
+
+      if (!matchesFilter) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const propertyName =
+        viewing.property?.title || "";
+
+      const customerName =
+        getPersonName(viewing.renter);
+
+      const marketerName =
+        getMarketerName(viewing.assignedMarketer);
+
+      const location =
+        getPropertyLocation(viewing.property);
+
+      const haystack = [
+        viewing.id,
+        propertyName,
+        customerName,
+        viewing.renter?.phone || "",
+        viewing.renter?.email || "",
+        marketerName,
+        location,
+        viewing.status,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [viewings, filter, search]);
+
+  const navigate = (path: string) => {
+    setSidebarOpen(false);
+    router.push(path as never);
+  };
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.desktopSidebar}>
+        <SidebarContent navigate={navigate} />
+      </View>
+
+      {sidebarOpen && (
+        <Modal
+          visible
+          animationType="fade"
+          transparent
+          onRequestClose={() => setSidebarOpen(false)}
+        >
+          <View style={styles.mobileSidebarOverlay}>
+            <View style={styles.mobileSidebar}>
+              <View style={styles.mobileSidebarHeader}>
+                <Text style={styles.mobileSidebarTitle}>
+                  MAKAZII
+                </Text>
+
+                <Pressable
+                  onPress={() => setSidebarOpen(false)}
+                  style={styles.iconButton}
+                >
+                  <X size={20} color="#F5F7F7" />
+                </Pressable>
+              </View>
+
+              <SidebarContent navigate={navigate} />
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      <View style={styles.main}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Pressable
+              onPress={() => setSidebarOpen(true)}
+              style={styles.mobileMenuButton}
+            >
+              <Menu size={21} color="#F5F7F7" />
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <ArrowLeft size={18} color="#9CA5A7" />
+            </Pressable>
+
+            <View>
+              <Text style={styles.pageTitle}>Viewings</Text>
+              <Text style={styles.pageSubtitle}>
+                Manage paid viewing requests, approvals, and representative assignments
+              </Text>
+            </View>
+          </View>
+
+          <Pressable
+            onPress={refresh}
+            style={styles.refreshButton}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <ActivityIndicator
+                size="small"
+                color="#D7FF5F"
+              />
+            ) : (
+              <RefreshCw
+                size={17}
+                color="#D7FF5F"
+              />
+            )}
+
+            <Text style={styles.refreshText}>
+              Refresh
+            </Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={styles.contentContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refresh}
+              tintColor="#D7FF5F"
+            />
+          }
+        >
+          <View style={styles.workflowBanner}>
+            <View style={styles.workflowIcon}>
+              <ShieldCheck
+                size={20}
+                color="#D7FF5F"
+              />
+            </View>
+
+            <View style={styles.workflowText}>
+              <Text style={styles.workflowTitle}>
+                Admin approval controls representative assignment
+              </Text>
+
+              <Text style={styles.workflowDescription}>
+                Only PAID viewing requests can be approved. Once approved,
+                the backend automatically assigns the marketer who sourced
+                the property and notifies both sides.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.statsGrid}>
+            <StatCard
+              label="Total"
+              value={counts.total}
+              icon={Eye}
+              onPress={() => setFilter("ALL")}
+            />
+
+            <StatCard
+              label="Paid · awaiting approval"
+              value={counts.paid}
+              icon={CheckCircle2}
+              onPress={() => setFilter("PAID")}
+            />
+
+            <StatCard
+              label="Assigned"
+              value={counts.assigned}
+              icon={ShieldCheck}
+              onPress={() => setFilter("ASSIGNED")}
+            />
+
+            <StatCard
+              label="Confirmed"
+              value={counts.confirmed}
+              icon={CheckCircle2}
+              onPress={() => setFilter("CONFIRMED")}
+            />
+
+            <StatCard
+              label="Completed"
+              value={counts.completed}
+              icon={CheckCircle2}
+              onPress={() => setFilter("COMPLETED")}
+            />
+
+            <StatCard
+              label="Pending payment"
+              value={counts.pendingPayment}
+              icon={Clock3}
+              onPress={() => setFilter("PENDING_PAYMENT")}
+            />
+          </View>
+
+          <View style={styles.toolbar}>
+            <View style={styles.searchWrap}>
+              <Search
+                size={18}
+                color="#727C7F"
+              />
+
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search customer, property, phone, marketer..."
+                placeholderTextColor="#667073"
+                style={styles.searchInput}
+              />
+
+              {search.length > 0 && (
+                <Pressable
+                  onPress={() => setSearch("")}
+                >
+                  <X
+                    size={17}
+                    color="#8D9698"
+                  />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {FILTERS.map((item) => {
+                const active = filter === item.key;
+
+                return (
+                  <Pressable
+                    key={item.key}
+                    onPress={() => setFilter(item.key)}
+                    style={[
+                      styles.filterChip,
+                      active && styles.filterChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        active && styles.filterTextActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {error && (
+            <View style={styles.errorBox}>
+              <AlertCircle
+                size={19}
+                color="#FF8B8B"
+              />
+
+              <View style={styles.errorContent}>
+                <Text style={styles.errorTitle}>
+                  Unable to load viewings
+                </Text>
+
+                <Text style={styles.errorMessage}>
+                  {error}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={loadViewings}
+                style={styles.retryButton}
+              >
+                <Text style={styles.retryText}>
+                  Retry
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {loading ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator
+                size="large"
+                color="#D7FF5F"
+              />
+              <Text style={styles.loadingText}>
+                Loading viewing requests...
+              </Text>
+            </View>
+          ) : filteredViewings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}>
+                <Eye
+                  size={25}
+                  color="#D7FF5F"
+                />
+              </View>
+
+              <Text style={styles.emptyTitle}>
+                No viewings found
+              </Text>
+
+              <Text style={styles.emptyText}>
+                {search
+                  ? "No viewing requests match your search."
+                  : filter === "PAID"
+                    ? "There are no paid viewing requests awaiting admin approval."
+                    : "There are no viewing requests in this category."}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.list}>
+              <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>
+                  Viewing requests
+                </Text>
+
+                <Text style={styles.listCount}>
+                  {filteredViewings.length} shown
+                </Text>
+              </View>
+
+              {filteredViewings.map((viewing) => {
+                const image =
+                  getPropertyImage(
+                    viewing.property
+                  );
+
+                const payment =
+                  getPrimaryPayment(
+                    viewing
+                  );
+
+                return (
+                  <Pressable
+                    key={viewing.id}
+                    onPress={() =>
+                      openViewing(viewing)
+                    }
+                    style={styles.viewingCard}
+                  >
+                    <View style={styles.cardImageWrap}>
+                      {image ? (
+                        <Image
+                          source={{ uri: image }}
+                          style={styles.cardImage}
+                        />
+                      ) : (
+                        <View
+                          style={
+                            styles.cardImagePlaceholder
+                          }
+                        >
+                          <Home
+                            size={26}
+                            color="#697376"
+                          />
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.cardMain}>
+                      <View style={styles.cardTopRow}>
+                        <View style={styles.cardTitleWrap}>
+                          <Text
+                            style={styles.propertyTitle}
+                            numberOfLines={1}
+                          >
+                            {viewing.property?.title ||
+                              "Untitled property"}
+                          </Text>
+
+                          <Text
+                            style={styles.locationText}
+                            numberOfLines={1}
+                          >
+                            {getPropertyLocation(
+                              viewing.property
+                            )}
+                          </Text>
+                        </View>
+
+                        <StatusBadge
+                          status={viewing.status}
+                        />
+                      </View>
+
+                      <View style={styles.cardInfoGrid}>
+                        <View style={styles.infoItem}>
+                          <UserRound
+                            size={15}
+                            color="#7E898B"
+                          />
+                          <Text
+                            style={styles.infoText}
+                            numberOfLines={1}
+                          >
+                            {getPersonName(
+                              viewing.renter
+                            )}
+                          </Text>
+                        </View>
+
+                        <View style={styles.infoItem}>
+                          <CalendarDays
+                            size={15}
+                            color="#7E898B"
+                          />
+                          <Text
+                            style={styles.infoText}
+                          >
+                            {formatDate(
+                              viewing.requestedDate
+                            )}
+                          </Text>
+                        </View>
+
+                        <View style={styles.infoItem}>
+                          <Clock3
+                            size={15}
+                            color="#7E898B"
+                          />
+                          <Text
+                            style={styles.infoText}
+                          >
+                            {viewing.preferredTime ||
+                              "Flexible"}
+                          </Text>
+                        </View>
+
+                        <View style={styles.infoItem}>
+                          <CheckCircle2
+                            size={15}
+                            color={
+                              payment?.status ===
+                              "SUCCESS"
+                                ? "#D7FF5F"
+                                : "#7E898B"
+                            }
+                          />
+                          <Text
+                            style={styles.infoText}
+                          >
+                            {payment
+                              ? `${payment.status || "Payment"} · ${formatMoney(
+                                  payment.amount,
+                                  payment.currency ||
+                                    "KES"
+                                )}`
+                              : "No payment record"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.cardBottom}>
+                        <Text
+                          style={styles.createdText}
+                        >
+                          Request created{" "}
+                          {formatDateTime(
+                            viewing.createdAt
+                          )}
+                        </Text>
+
+                        {viewing.assignedMarketer ? (
+                          <Text
+                            style={
+                              styles.assignedText
+                            }
+                            numberOfLines={1}
+                          >
+                            Representative:{" "}
+                            {getMarketerName(
+                              viewing.assignedMarketer
+                            )}
+                          </Text>
+                        ) : (
+                          <Text
+                            style={
+                              styles.unassignedText
+                            }
+                          >
+                            Representative not assigned — awaiting admin approval
+                          </Text>
+                        )}
+
+                        <ChevronRight
+                          size={18}
+                          color="#667073"
+                        />
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+
+      <Modal
+        visible={Boolean(selectedViewing)}
+        transparent
+        animationType="slide"
+        onRequestClose={() =>
+          setSelectedViewing(null)
+        }
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.detailModal}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.modalTitle}>
+                  Viewing details
+                </Text>
+
+                <Text style={styles.modalSubtitle}>
+                  {selectedViewing?.id || ""}
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() =>
+                  setSelectedViewing(null)
+                }
+                style={styles.closeButton}
+              >
+                <X
+                  size={21}
+                  color="#F5F7F7"
+                />
+              </Pressable>
+            </View>
+
+            {detailLoading ? (
+              <View style={styles.modalLoading}>
+                <ActivityIndicator
+                  size="large"
+                  color="#D7FF5F"
+                />
+                <Text style={styles.loadingText}>
+                  Loading details...
+                </Text>
+              </View>
+            ) : selectedViewing ? (
+              <ScrollView
+                style={styles.modalScroll}
+                contentContainerStyle={
+                  styles.modalContent
+                }
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.modalStatusRow}>
+                  <StatusBadge
+                    status={
+                      selectedViewing.status
+                    }
+                  />
+
+                  <Text
+                    style={styles.statusDescription}
+                  >
+                    {getStatusDescription(
+                      selectedViewing.status
+                    )}
+                  </Text>
+                </View>
+
+                {selectedViewing.status ===
+                  "PAID" && (
+                  <View
+                    style={
+                      styles.approvalCallout
+                    }
+                  >
+                    <CheckCircle2
+                      size={20}
+                      color="#D7FF5F"
+                    />
+
+                    <View
+                      style={
+                        styles.approvalCalloutText
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.approvalTitle
+                        }
+                      >
+                        Payment received
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.approvalDescription
+                        }
+                      >
+                        This viewing is ready for
+                        admin approval. Approval
+                        automatically assigns the
+                        property's source marketer.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.detailSection}>
+                  <Text
+                    style={styles.sectionTitle}
+                  >
+                    Property
+                  </Text>
+
+                  <View style={styles.propertyDetailCard}>
+                    {getPropertyImage(
+                      selectedViewing.property
+                    ) ? (
+                      <Image
+                        source={{
+                          uri: getPropertyImage(
+                            selectedViewing.property
+                          ),
+                        }}
+                        style={
+                          styles.detailPropertyImage
+                        }
+                      />
+                    ) : (
+                      <View
+                        style={
+                          styles.detailPropertyPlaceholder
+                        }
+                      >
+                        <Home
+                          size={28}
+                          color="#697376"
+                        />
+                      </View>
+                    )}
+
+                    <View
+                      style={
+                        styles.propertyDetailInfo
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.detailPropertyTitle
+                        }
+                      >
+                        {selectedViewing.property
+                          ?.title ||
+                          "Untitled property"}
+                      </Text>
+
+                      <View
+                        style={
+                          styles.locationLine
+                        }
+                      >
+                        <MapPin
+                          size={14}
+                          color="#9CA5A7"
+                        />
+
+                        <Text
+                          style={
+                            styles.locationLineText
+                          }
+                        >
+                          {getPropertyLocation(
+                            selectedViewing.property
+                          )}
+                        </Text>
+                      </View>
+
+                      <Text
+                        style={
+                          styles.propertyRent
+                        }
+                      >
+                        {formatMoney(
+                          selectedViewing.property
+                            ?.monthlyRent
+                        )}
+                        {" / month"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.detailGrid}>
+                    <DetailRow
+                      icon={Home}
+                      label="Property purpose"
+                      value={
+                        selectedViewing.property
+                          ?.purpose || "—"
+                      }
+                    />
+
+                    <DetailRow
+                      icon={FileText}
+                      label="Property type"
+                      value={
+                        selectedViewing.property
+                          ?.longStayType || "—"
+                      }
+                    />
+
+                    <DetailRow
+                      icon={Home}
+                      label="Bedrooms"
+                      value={String(
+                        selectedViewing.property
+                          ?.bedrooms ?? "—"
+                      )}
+                    />
+
+                    <DetailRow
+                      icon={Home}
+                      label="Bathrooms"
+                      value={String(
+                        selectedViewing.property
+                          ?.bathrooms ?? "—"
+                      )}
+                    />
+
+                    <DetailRow
+                      icon={ShieldCheck}
+                      label="Verification"
+                      value={
+                        selectedViewing.property
+                          ?.verified
+                          ? "Verified"
+                          : "Not verified"
+                      }
+                    />
+
+                    <DetailRow
+                      icon={CheckCircle2}
+                      label="Availability"
+                      value={
+                        selectedViewing.property
+                          ?.available
+                          ? "Available"
+                          : "Unavailable"
+                      }
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text
+                    style={styles.sectionTitle}
+                  >
+                    Customer
+                  </Text>
+
+                  <View style={styles.contactCard}>
+                    <View style={styles.contactAvatar}>
+                      <UserRound
+                        size={21}
+                        color="#D7FF5F"
+                      />
+                    </View>
+
+                    <View
+                      style={
+                        styles.contactMain
+                      }
+                    >
+                      <Text
+                        style={styles.contactName}
+                      >
+                        {getPersonName(
+                          selectedViewing.renter
+                        )}
+                      </Text>
+
+                      <View
+                        style={
+                          styles.contactLine
+                        }
+                      >
+                        <Phone
+                          size={14}
+                          color="#8D9799"
+                        />
+
+                        <Text
+                          style={
+                            styles.contactText
+                          }
+                        >
+                          {selectedViewing.renter
+                            ?.phone || "No phone"}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={
+                          styles.contactLine
+                        }
+                      >
+                        <Mail
+                          size={14}
+                          color="#8D9799"
+                        />
+
+                        <Text
+                          style={
+                            styles.contactText
+                          }
+                        >
+                          {selectedViewing.renter
+                            ?.email || "No email"}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text
+                    style={styles.sectionTitle}
+                  >
+                    Viewing request
+                  </Text>
+
+                  <View style={styles.detailGrid}>
+                    <DetailRow
+                      icon={CalendarDays}
+                      label="Requested date"
+                      value={formatDate(
+                        selectedViewing.requestedDate
+                      )}
+                    />
+
+                    <DetailRow
+                      icon={Clock3}
+                      label="Preferred time"
+                      value={
+                        selectedViewing.preferredTime ||
+                        "Flexible"
+                      }
+                    />
+
+                    <DetailRow
+                      icon={UserRound}
+                      label="Requested by"
+                      value={
+                        selectedViewing.requestedBy ||
+                        "RENTER"
+                      }
+                    />
+
+                    <DetailRow
+                      icon={Clock3}
+                      label="Created"
+                      value={formatDateTime(
+                        selectedViewing.createdAt
+                      )}
+                    />
+                  </View>
+
+                  {selectedViewing.notes ? (
+                    <View style={styles.notesBox}>
+                      <Text
+                        style={styles.notesLabel}
+                      >
+                        Customer notes
+                      </Text>
+
+                      <Text
+                        style={styles.notesText}
+                      >
+                        {selectedViewing.notes}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text
+                    style={styles.sectionTitle}
+                  >
+                    Payment
+                  </Text>
+
+                  {selectedViewing.payments &&
+                  selectedViewing.payments.length >
+                    0 ? (
+                    selectedViewing.payments.map(
+                      (payment) => (
+                        <View
+                          key={payment.id}
+                          style={
+                            styles.paymentCard
+                          }
+                        >
+                          <View
+                            style={
+                              styles.paymentTop
+                            }
+                          >
+                            <View>
+                              <Text
+                                style={
+                                  styles.paymentAmount
+                                }
+                              >
+                                {formatMoney(
+                                  payment.amount,
+                                  payment.currency ||
+                                    "KES"
+                                )}
+                              </Text>
+
+                              <Text
+                                style={
+                                  styles.paymentProvider
+                                }
+                              >
+                                {payment.provider ||
+                                  payment.method ||
+                                  "Payment"}
+                              </Text>
+                            </View>
+
+                            <View
+                              style={[
+                                styles.paymentStatus,
+                                payment.status ===
+                                  "SUCCESS" &&
+                                  styles.paymentStatusSuccess,
+                              ]}
+                            >
+                              <Text
+                                style={
+                                  styles.paymentStatusText
+                                }
+                              >
+                                {payment.status ||
+                                  "UNKNOWN"}
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View
+                            style={
+                              styles.paymentDetails
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.paymentDetailText
+                              }
+                            >
+                              Reference:{" "}
+                              {payment.reference ||
+                                "—"}
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.paymentDetailText
+                              }
+                            >
+                              Provider reference:{" "}
+                              {payment.providerReference ||
+                                "—"}
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.paymentDetailText
+                              }
+                            >
+                              Paid at:{" "}
+                              {formatDateTime(
+                                payment.paidAt
+                              )}
+                            </Text>
+                          </View>
+                        </View>
+                      )
+                    )
+                  ) : (
+                    <View
+                      style={styles.noPayment}
+                    >
+                      <Text
+                        style={
+                          styles.noPaymentText
+                        }
+                      >
+                        No payment record is attached
+                        to this viewing.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.detailSection}>
+                  <Text
+                    style={styles.sectionTitle}
+                  >
+                    Representative
+                  </Text>
+
+                  {selectedViewing.assignedMarketer ? (
+                    <View
+                      style={
+                        styles.contactCard
+                      }
+                    >
+                      <View
+                        style={
+                          styles.contactAvatar
+                        }
+                      >
+                        <ShieldCheck
+                          size={21}
+                          color="#D7FF5F"
+                        />
+                      </View>
+
+                      <View
+                        style={
+                          styles.contactMain
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.contactName
+                          }
+                        >
+                          {getMarketerName(
+                            selectedViewing.assignedMarketer
+                          )}
+                        </Text>
+
+                        <View
+                          style={
+                            styles.contactLine
+                          }
+                        >
+                          <Phone
+                            size={14}
+                            color="#8D9799"
+                          />
+
+                          <Text
+                            style={
+                              styles.contactText
+                            }
+                          >
+                            {selectedViewing
+                              .assignedMarketer
+                              .user?.phone ||
+                              "No phone"}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={
+                            styles.contactLine
+                          }
+                        >
+                          <Mail
+                            size={14}
+                            color="#8D9799"
+                          />
+
+                          <Text
+                            style={
+                              styles.contactText
+                            }
+                          >
+                            {selectedViewing
+                              .assignedMarketer
+                              .user?.email ||
+                              "No email"}
+                          </Text>
+                        </View>
+
+                        <Text
+                          style={
+                            styles.assignmentDate
+                          }
+                        >
+                          Assigned{" "}
+                          {formatDateTime(
+                            selectedViewing.assignedAt
+                          )}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : selectedViewing.property
+                      ?.marketer ? (
+                    <View
+                      style={
+                        styles.sourceInfoCard
+                      }
+                    >
+                      <ShieldCheck
+                        size={19}
+                        color="#D7FF5F"
+                      />
+
+                      <View
+                        style={
+                          styles.sourceInfoText
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.sourceInfoTitle
+                          }
+                        >
+                          Property source representative
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.sourceInfoName
+                          }
+                        >
+                          {getMarketerName(
+                            selectedViewing
+                              .property
+                              .marketer
+                          )}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.sourceInfoDescription
+                          }
+                        >
+                          This marketer will be
+                          automatically assigned when
+                          the paid viewing is approved.
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View
+                      style={styles.warningCard}
+                    >
+                      <AlertCircle
+                        size={19}
+                        color="#FFB86B"
+                      />
+
+                      <Text
+                        style={
+                          styles.warningText
+                        }
+                      >
+                        This property has no source
+                        marketer. The backend will not
+                        approve this viewing until one
+                        is available.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {selectedViewing.statusHistory &&
+                selectedViewing.statusHistory.length >
+                  0 ? (
+                  <View
+                    style={styles.detailSection}
+                  >
+                    <Text
+                      style={styles.sectionTitle}
+                    >
+                      Status history
+                    </Text>
+
+                    <View
+                      style={
+                        styles.historyList
+                      }
+                    >
+                      {selectedViewing.statusHistory.map(
+                        (history) => (
+                          <View
+                            key={history.id}
+                            style={
+                              styles.historyItem
+                            }
+                          >
+                            <View
+                              style={
+                                styles.historyDot
+                              }
+                            />
+
+                            <View
+                              style={
+                                styles.historyMain
+                              }
+                            >
+                              <View
+                                style={
+                                  styles.historyTop
+                                }
+                              >
+                                <Text
+                                  style={
+                                    styles.historyStatus
+                                  }
+                                >
+                                  {formatStatus(
+                                    history.status ||
+                                      ""
+                                  )}
+                                </Text>
+
+                                <Text
+                                  style={
+                                    styles.historyDate
+                                  }
+                                >
+                                  {formatDateTime(
+                                    history.createdAt
+                                  )}
+                                </Text>
+                              </View>
+
+                              {history.note ? (
+                                <Text
+                                  style={
+                                    styles.historyNote
+                                  }
+                                >
+                                  {history.note}
+                                </Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        )
+                      )}
+                    </View>
+                  </View>
+                ) : null}
+
+                {selectedViewing.status ===
+                  "PAID" && (
+                  <View style={styles.modalActions}>
+                    <Pressable
+                      onPress={approveViewing}
+                      disabled={approving}
+                      style={[
+                        styles.approveButton,
+                        approving &&
+                          styles.buttonDisabled,
+                      ]}
+                    >
+                      {approving ? (
+                        <ActivityIndicator
+                          size="small"
+                          color="#0B0F10"
+                        />
+                      ) : (
+                        <CheckCircle2
+                          size={18}
+                          color="#0B0F10"
+                        />
+                      )}
+
+                      <Text
+                        style={
+                          styles.approveButtonText
+                        }
+                      >
+                        {approving
+                          ? "Approving..."
+                          : "Approve & Assign Source Marketer"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#0B0F10",
+    flexDirection: "row",
+  },
+
+  desktopSidebar: {
+    width: 248,
+    backgroundColor: "#101516",
+    borderRightWidth: 1,
+    borderRightColor: "#252C2E",
+  },
+
+  sidebarInner: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 28,
+    paddingBottom: 20,
+  },
+
+  logoWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 8,
+    marginBottom: 42,
+  },
+
+  logoMark: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D7FF5F",
+  },
+
+  logoMarkText: {
+    color: "#0B0F10",
+    fontSize: 19,
+    fontWeight: "900",
+  },
+
+  logoTitle: {
+    color: "#F5F7F7",
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+  },
+
+  logoSubtitle: {
+    color: "#687376",
+    fontSize: 8,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    marginTop: 2,
+  },
+
+  navHeading: {
+    color: "#5F696C",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.3,
+    paddingHorizontal: 10,
+    marginBottom: 9,
+  },
+
+  navList: {
+    gap: 4,
+  },
+
+  navItem: {
+    minHeight: 45,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    gap: 12,
+  },
+
+  navItemActive: {
+    backgroundColor: "#D7FF5F",
+  },
+
+  navText: {
+    color: "#9CA5A7",
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+  },
+
+  navTextActive: {
+    color: "#0B0F10",
+  },
+
+  navActiveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 5,
+    backgroundColor: "#0B0F10",
+  },
+
+  sidebarBottom: {
+    marginTop: "auto",
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 15,
+    padding: 14,
+  },
+
+  sidebarBottomTitle: {
+    color: "#D7FF5F",
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: 7,
+  },
+
+  sidebarBottomText: {
+    color: "#7E898B",
+    fontSize: 10,
+    lineHeight: 15,
+  },
+
+  main: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  header: {
+    minHeight: 82,
+    borderBottomWidth: 1,
+    borderBottomColor: "#252C2E",
+    paddingHorizontal: 26,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 18,
+  },
+
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    flex: 1,
+  },
+
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  mobileMenuButton: {
+    display: "none",
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  pageTitle: {
+    color: "#F5F7F7",
+    fontSize: 23,
+    fontWeight: "900",
+  },
+
+  pageSubtitle: {
+    color: "#788285",
+    fontSize: 11,
+    marginTop: 3,
+  },
+
+  refreshButton: {
+    height: 39,
+    paddingHorizontal: 13,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#30383A",
+    backgroundColor: "#14191B",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  refreshText: {
+    color: "#C5CDCE",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  content: {
+    flex: 1,
+  },
+
+  contentContainer: {
+    padding: 26,
+    paddingBottom: 60,
+    maxWidth: 1500,
+    width: "100%",
+    alignSelf: "center",
+  },
+
+  workflowBanner: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#394338",
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 13,
+    marginBottom: 19,
+  },
+
+  workflowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#20271F",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  workflowText: {
+    flex: 1,
+  },
+
+  workflowTitle: {
+    color: "#F2F5F5",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+
+  workflowDescription: {
+    color: "#8A9496",
+    fontSize: 11,
+    lineHeight: 17,
+  },
+
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 20,
+  },
+
+  statCard: {
+    flex: 1,
+    minWidth: 145,
+    maxWidth: 250,
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 15,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  statIcon: {
+    width: 37,
+    height: 37,
+    borderRadius: 11,
+    backgroundColor: "#1E2527",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  statContent: {
+    flex: 1,
+  },
+
+  statValue: {
+    color: "#F5F7F7",
+    fontSize: 20,
+    fontWeight: "900",
+  },
+
+  statLabel: {
+    color: "#7E898B",
+    fontSize: 10,
+    marginTop: 2,
+  },
+
+  toolbar: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 15,
+    padding: 13,
+    marginBottom: 18,
+    gap: 12,
+  },
+
+  searchWrap: {
+    height: 44,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "#30383A",
+    backgroundColor: "#101516",
+    paddingHorizontal: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+
+  searchInput: {
+    flex: 1,
+    color: "#F5F7F7",
+    fontSize: 12,
+  },
+
+  filterRow: {
+    gap: 7,
+    paddingRight: 4,
+  },
+
+  filterChip: {
+    minHeight: 33,
+    paddingHorizontal: 12,
+    borderRadius: 9,
+    backgroundColor: "#101516",
+    borderWidth: 1,
+    borderColor: "#2A3234",
+    justifyContent: "center",
+  },
+
+  filterChipActive: {
+    backgroundColor: "#D7FF5F",
+    borderColor: "#D7FF5F",
+  },
+
+  filterText: {
+    color: "#899294",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  filterTextActive: {
+    color: "#0B0F10",
+  },
+
+  errorBox: {
+    backgroundColor: "#201719",
+    borderWidth: 1,
+    borderColor: "#533035",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginBottom: 16,
+  },
+
+  errorContent: {
+    flex: 1,
+  },
+
+  errorTitle: {
+    color: "#FFB4B4",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
+  errorMessage: {
+    color: "#B88D8D",
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#2A1E20",
+  },
+
+  retryText: {
+    color: "#FFB4B4",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  loadingState: {
+    minHeight: 260,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+
+  loadingText: {
+    color: "#7E898B",
+    fontSize: 11,
+  },
+
+  emptyState: {
+    minHeight: 280,
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 17,
+    backgroundColor: "#14191B",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 30,
+  },
+
+  emptyIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 17,
+    backgroundColor: "#1D2426",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+
+  emptyTitle: {
+    color: "#E9EEEE",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+
+  emptyText: {
+    color: "#707B7D",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 6,
+    maxWidth: 420,
+    lineHeight: 17,
+  },
+
+  list: {
+    gap: 10,
+  },
+
+  listHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 2,
+  },
+
+  listTitle: {
+    color: "#E9EEEE",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  listCount: {
+    color: "#6F797B",
+    fontSize: 10,
+  },
+
+  viewingCard: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 15,
+    padding: 11,
+    flexDirection: "row",
+    gap: 13,
+  },
+
+  cardImageWrap: {
+    width: 118,
+    height: 118,
+    borderRadius: 11,
+    overflow: "hidden",
+    backgroundColor: "#101516",
+  },
+
+  cardImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  cardImagePlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  cardMain: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: "space-between",
+  },
+
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+
+  cardTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  propertyTitle: {
+    color: "#F0F3F3",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  locationText: {
+    color: "#788285",
+    fontSize: 10,
+    marginTop: 4,
+  },
+
+  statusBadge: {
+    minHeight: 27,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+  },
+
+  status_paid: {
+    backgroundColor: "#D7FF5F",
+  },
+
+  status_assigned: {
+    backgroundColor: "#D7FF5F",
+  },
+
+  status_confirmed: {
+    backgroundColor: "#D7FF5F",
+  },
+
+  status_completed: {
+    backgroundColor: "#D7FF5F",
+  },
+
+  status_pending: {
+    backgroundColor: "#C7CED0",
+  },
+
+  status_danger: {
+    backgroundColor: "#FF9A9A",
+  },
+
+  status_neutral: {
+    backgroundColor: "#C7CED0",
+  },
+
+  statusBadgeText: {
+    color: "#0B0F10",
+    fontSize: 9,
+    fontWeight: "900",
+  },
+
+  cardInfoGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9,
+    marginTop: 15,
+  },
+
+  infoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    minWidth: 145,
+    maxWidth: "48%",
+  },
+
+  infoText: {
+    color: "#9AA3A5",
+    fontSize: 10,
+    flexShrink: 1,
+  },
+
+  cardBottom: {
+    marginTop: 14,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#232A2C",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  createdText: {
+    color: "#657073",
+    fontSize: 9,
+    flex: 1,
+  },
+
+  assignedText: {
+    color: "#D7FF5F",
+    fontSize: 9,
+    maxWidth: 230,
+  },
+
+  unassignedText: {
+    color: "#777F81",
+    fontSize: 9,
+  },
+
+  mobileSidebarOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.62)",
+    flexDirection: "row",
+  },
+
+  mobileSidebar: {
+    width: 290,
+    backgroundColor: "#101516",
+    borderRightWidth: 1,
+    borderRightColor: "#252C2E",
+  },
+
+  mobileSidebarHeader: {
+    height: 66,
+    paddingHorizontal: 17,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#252C2E",
+  },
+
+  mobileSidebarTitle: {
+    color: "#D7FF5F",
+    fontSize: 17,
+    fontWeight: "900",
+    letterSpacing: 1.3,
+  },
+
+  iconButton: {
+    width: 37,
+    height: 37,
+    borderRadius: 10,
+    backgroundColor: "#171D1F",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+
+  detailModal: {
+    width: "100%",
+    maxWidth: 900,
+    maxHeight: "94%",
+    backgroundColor: "#101516",
+    borderWidth: 1,
+    borderColor: "#30383A",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    overflow: "hidden",
+  },
+
+  modalHeader: {
+    minHeight: 70,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#252C2E",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  modalHeaderText: {
+    flex: 1,
+  },
+
+  modalTitle: {
+    color: "#F5F7F7",
+    fontSize: 17,
+    fontWeight: "900",
+  },
+
+  modalSubtitle: {
+    color: "#697477",
+    fontSize: 9,
+    marginTop: 3,
+  },
+
+  closeButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#191F21",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  modalLoading: {
+    minHeight: 320,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+
+  modalScroll: {
+    flex: 1,
+  },
+
+  modalContent: {
+    padding: 20,
+    paddingBottom: 40,
+    gap: 22,
+  },
+
+  modalStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  statusDescription: {
+    color: "#858F91",
+    fontSize: 10,
+    flex: 1,
+    lineHeight: 15,
+  },
+
+  approvalCallout: {
+    backgroundColor: "#1B211B",
+    borderWidth: 1,
+    borderColor: "#3A4536",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    gap: 11,
+  },
+
+  approvalCalloutText: {
+    flex: 1,
+  },
+
+  approvalTitle: {
+    color: "#D7FF5F",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  approvalDescription: {
+    color: "#9AA39A",
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 4,
+  },
+
+  detailSection: {
+    gap: 12,
+  },
+
+  sectionTitle: {
+    color: "#E7ECEC",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  propertyDetailCard: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 14,
+    padding: 10,
+    flexDirection: "row",
+    gap: 12,
+  },
+
+  detailPropertyImage: {
+    width: 115,
+    height: 92,
+    borderRadius: 10,
+  },
+
+  detailPropertyPlaceholder: {
+    width: 115,
+    height: 92,
+    borderRadius: 10,
+    backgroundColor: "#101516",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  propertyDetailInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+
+  detailPropertyTitle: {
+    color: "#F2F5F5",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  locationLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 7,
+  },
+
+  locationLineText: {
+    color: "#8A9496",
+    fontSize: 10,
+    flex: 1,
+  },
+
+  propertyRent: {
+    color: "#D7FF5F",
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 9,
+  },
+
+  detailGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+
+  detailRow: {
+    width: "48%",
+    minWidth: 210,
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 11,
+    padding: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+
+  detailIcon: {
+    width: 31,
+    height: 31,
+    borderRadius: 9,
+    backgroundColor: "#1B2022",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  detailTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  detailLabel: {
+    color: "#697376",
+    fontSize: 9,
+  },
+
+  detailValue: {
+    color: "#D9DEDF",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+
+  contactCard: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    gap: 12,
+  },
+
+  contactAvatar: {
+    width: 43,
+    height: 43,
+    borderRadius: 13,
+    backgroundColor: "#1D2522",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  contactMain: {
+    flex: 1,
+    gap: 5,
+  },
+
+  contactName: {
+    color: "#F0F3F3",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+
+  contactLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  contactText: {
+    color: "#8B9597",
+    fontSize: 10,
+  },
+
+  assignmentDate: {
+    color: "#657073",
+    fontSize: 9,
+    marginTop: 4,
+  },
+
+  sourceInfoCard: {
+    backgroundColor: "#181F1D",
+    borderWidth: 1,
+    borderColor: "#384438",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    gap: 11,
+  },
+
+  sourceInfoText: {
+    flex: 1,
+  },
+
+  sourceInfoTitle: {
+    color: "#D7FF5F",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  sourceInfoName: {
+    color: "#E8ECEC",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+
+  sourceInfoDescription: {
+    color: "#89948A",
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 5,
+  },
+
+  warningCard: {
+    backgroundColor: "#211C16",
+    borderWidth: 1,
+    borderColor: "#4A3A27",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  warningText: {
+    color: "#B7A187",
+    fontSize: 10,
+    lineHeight: 15,
+    flex: 1,
+  },
+
+  notesBox: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 12,
+    padding: 13,
+  },
+
+  notesLabel: {
+    color: "#697376",
+    fontSize: 9,
+    fontWeight: "800",
+    marginBottom: 5,
+  },
+
+  notesText: {
+    color: "#B8C0C1",
+    fontSize: 10,
+    lineHeight: 16,
+  },
+
+  paymentCard: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 14,
+    padding: 14,
+  },
+
+  paymentTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+
+  paymentAmount: {
+    color: "#F2F5F5",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+
+  paymentProvider: {
+    color: "#737E80",
+    fontSize: 9,
+    marginTop: 3,
+  },
+
+  paymentStatus: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 7,
+    backgroundColor: "#242A2C",
+  },
+
+  paymentStatusSuccess: {
+    backgroundColor: "#D7FF5F",
+  },
+
+  paymentStatusText: {
+    color: "#0B0F10",
+    fontSize: 8,
+    fontWeight: "900",
+  },
+
+  paymentDetails: {
+    borderTopWidth: 1,
+    borderTopColor: "#252C2E",
+    marginTop: 12,
+    paddingTop: 10,
+    gap: 5,
+  },
+
+  paymentDetailText: {
+    color: "#7E898B",
+    fontSize: 9,
+  },
+
+  noPayment: {
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 13,
+    padding: 15,
+  },
+
+  noPaymentText: {
+    color: "#7C8789",
+    fontSize: 10,
+  },
+
+  historyList: {
+    gap: 0,
+  },
+
+  historyItem: {
+    flexDirection: "row",
+    gap: 11,
+    paddingBottom: 15,
+  },
+
+  historyDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 9,
+    backgroundColor: "#D7FF5F",
+    marginTop: 4,
+  },
+
+  historyMain: {
+    flex: 1,
+    backgroundColor: "#14191B",
+    borderWidth: 1,
+    borderColor: "#252C2E",
+    borderRadius: 11,
+    padding: 11,
+  },
+
+  historyTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  historyStatus: {
+    color: "#D9DEDF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  historyDate: {
+    color: "#626C6E",
+    fontSize: 8,
+  },
+
+  historyNote: {
+    color: "#7E898B",
+    fontSize: 9,
+    lineHeight: 14,
+    marginTop: 5,
+  },
+
+  modalActions: {
+    paddingTop: 2,
+  },
+
+  approveButton: {
+    minHeight: 50,
+    borderRadius: 13,
+    backgroundColor: "#D7FF5F",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 9,
+    paddingHorizontal: 18,
+  },
+
+  approveButtonText: {
+    color: "#0B0F10",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+
+  buttonDisabled: {
+    opacity: 0.65,
+  },
+});
+

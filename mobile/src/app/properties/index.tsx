@@ -1,0 +1,1026 @@
+import React, { useMemo } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  type ImageStyle,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
+import { router } from 'expo-router';
+import {
+  ArrowLeft,
+  Bath,
+  BedDouble,
+  CheckCircle2,
+  Heart,
+  MapPin,
+  Ruler,
+} from 'lucide-react-native';
+
+import { useProperties } from '@/context/PropertyContext';
+import { useShortlist } from '@/context/ShortlistContext';
+
+const COLORS = {
+  background: '#0B0F10',
+  card: '#14191B',
+  cardSoft: '#181E20',
+  lime: '#D7FF5F',
+  white: '#FFFFFF',
+  muted: '#9CA5A7',
+  border: '#252C2E',
+};
+
+type Styles = {
+  safeArea: ViewStyle;
+  container: ViewStyle;
+  header: ViewStyle;
+  backButton: ViewStyle;
+  headerText: ViewStyle;
+  eyebrow: TextStyle;
+  title: TextStyle;
+  headerSpacer: ViewStyle;
+  intro: ViewStyle;
+  introTitle: TextStyle;
+  introSubtitle: TextStyle;
+  resultRow: ViewStyle;
+  resultCount: TextStyle;
+  resultDot: ViewStyle;
+  resultLabel: TextStyle;
+  listContent: ViewStyle;
+  propertyCard: ViewStyle;
+  imageContainer: ViewStyle;
+  propertyImage: ImageStyle;
+  imagePlaceholder: ViewStyle;
+  badgeRow: ViewStyle;
+  verifiedBadge: ViewStyle;
+  verifiedText: TextStyle;
+  availableBadge: ViewStyle;
+  availableText: TextStyle;
+  heartButton: ViewStyle;
+  heartButtonSaved: ViewStyle;
+  cardContent: ViewStyle;
+  titleRow: ViewStyle;
+  titleArea: ViewStyle;
+  propertyTitle: TextStyle;
+  locationRow: ViewStyle;
+  locationText: TextStyle;
+  typeBadge: ViewStyle;
+  typeBadgeText: TextStyle;
+  priceRow: ViewStyle;
+  shortStayPriceBlock: ViewStyle;
+  shortStayPriceRow: ViewStyle;
+  price: TextStyle;
+  priceSecondary: TextStyle;
+  perMonth: TextStyle;
+  statsRow: ViewStyle;
+  stat: ViewStyle;
+  statText: TextStyle;
+  roomIcon: TextStyle;
+  guestIcon: TextStyle;
+  cardFooter: ViewStyle;
+  depositLabel: TextStyle;
+  depositValue: TextStyle;
+  viewButton: ViewStyle;
+  viewButtonText: TextStyle;
+  emptyCard: ViewStyle;
+  emptyIcon: ViewStyle;
+  emptyTitle: TextStyle;
+  emptyText: TextStyle;
+  exploreButton: ViewStyle;
+  exploreButtonText: TextStyle;
+  bottomSpacing: ViewStyle;
+};
+
+export default function PropertiesScreen() {
+  const {
+    isShortlisted,
+    toggleShortlist,
+  } = useShortlist();
+
+  const { properties: backendProperties } = useProperties();
+
+  const properties = useMemo(
+    () =>
+      backendProperties.filter(
+        (property) =>
+          property.status === 'published' &&
+          property.availability === 'available',
+      ),
+    [backendProperties],
+  );
+
+  const openProperty = (propertyId: string) => {
+    router.push({
+      pathname: '/properties/[id]',
+      params: {
+        id: propertyId,
+      },
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+          >
+            <ArrowLeft
+              size={21}
+              color={COLORS.white}
+              strokeWidth={2}
+            />
+          </TouchableOpacity>
+
+          <View style={styles.headerText}>
+            <Text style={styles.eyebrow}>
+              MAKAZII
+            </Text>
+
+            <Text style={styles.title}>
+              Properties
+            </Text>
+          </View>
+
+          <View style={styles.headerSpacer} />
+        </View>
+
+        {/* Intro */}
+        <View style={styles.intro}>
+          <Text style={styles.introTitle}>
+            Find a place to call home
+          </Text>
+
+          <Text style={styles.introSubtitle}>
+            Browse verified rental homes available
+            across different locations.
+          </Text>
+        </View>
+
+        {/* Results count */}
+        <View style={styles.resultRow}>
+          <Text style={styles.resultCount}>
+            {properties.length}{' '}
+            {properties.length === 1
+              ? 'property'
+              : 'properties'}
+          </Text>
+
+          <View style={styles.resultDot} />
+
+          <Text style={styles.resultLabel}>
+            Available listings
+          </Text>
+        </View>
+
+        {/* Property list */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+        >
+          {properties.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <View style={styles.emptyIcon}>
+                <MapPin
+                  size={24}
+                  color={COLORS.lime}
+                />
+              </View>
+
+              <Text style={styles.emptyTitle}>
+                No properties available
+              </Text>
+
+              <Text style={styles.emptyText}>
+                New homes will appear here when
+                they are published.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.exploreButton}
+                onPress={() =>
+                  router.push('/search')
+                }
+                activeOpacity={0.85}
+              >
+                <Text
+                  style={styles.exploreButtonText}
+                >
+                  Explore Search
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            properties.map((property) => {
+              const saved = isShortlisted(
+                property.id,
+              );
+
+              const mainImage =
+                property.images?.[0]?.uri;
+
+              const isShortStay =
+                property.purpose === 'SHORT_STAY';
+
+              const hasDayRate =
+                typeof property.dayRate === 'number' &&
+                property.dayRate > 0;
+
+              const hasNightRate =
+                typeof property.nightRate === 'number' &&
+                property.nightRate > 0;
+
+              const hasDayNightRate =
+                typeof property.dayNightRate === 'number' &&
+                property.dayNightRate > 0;
+
+              return (
+                <TouchableOpacity
+                  key={property.id}
+                  style={styles.propertyCard}
+                  onPress={() =>
+                    openProperty(property.id)
+                  }
+                  activeOpacity={0.92}
+                >
+                  {/* Image */}
+                  <View
+                    style={styles.imageContainer}
+                  >
+                    {mainImage ? (
+                      <Image
+                        source={{
+                          uri: mainImage,
+                        }}
+                        style={styles.propertyImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View
+                        style={
+                          styles.imagePlaceholder
+                        }
+                      >
+                        <MapPin
+                          size={30}
+                          color={COLORS.muted}
+                        />
+                      </View>
+                    )}
+
+                    {/* Badges */}
+                    <View
+                      style={styles.badgeRow}
+                    >
+                      {property.verificationStatus === 'verified' && (
+                        <View
+                          style={
+                            styles.verifiedBadge
+                          }
+                        >
+                          <CheckCircle2
+                            size={13}
+                            color={
+                              COLORS.background
+                            }
+                            strokeWidth={2.5}
+                          />
+
+                          <Text
+                            style={
+                              styles.verifiedText
+                            }
+                          >
+                            Verified
+                          </Text>
+                        </View>
+                      )}
+
+                      {property.availability === 'available' && (
+                        <View
+                          style={
+                            styles.availableBadge
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.availableText
+                            }
+                          >
+                            Available
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Shortlist */}
+                    <TouchableOpacity
+                      style={[
+                        styles.heartButton,
+                        saved &&
+                          styles.heartButtonSaved,
+                      ]}
+                      onPress={(event) => {
+                        event.stopPropagation();
+
+                        toggleShortlist(
+                          property.id,
+                        );
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Heart
+                        size={19}
+                        color={
+                          saved
+                            ? COLORS.lime
+                            : COLORS.white
+                        }
+                        fill={
+                          saved
+                            ? COLORS.lime
+                            : 'transparent'
+                        }
+                        strokeWidth={1.8}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Content */}
+                  <View
+                    style={styles.cardContent}
+                  >
+                    <View
+                      style={styles.titleRow}
+                    >
+                      <View
+                        style={styles.titleArea}
+                      >
+                        <Text
+                          style={
+                            styles.propertyTitle
+                          }
+                          numberOfLines={1}
+                        >
+                          {property.title}
+                        </Text>
+
+                        <View
+                          style={
+                            styles.locationRow
+                          }
+                        >
+                          <MapPin
+                            size={14}
+                            color={
+                              COLORS.muted
+                            }
+                            strokeWidth={1.8}
+                          />
+
+                          <Text
+                            style={
+                              styles.locationText
+                            }
+                            numberOfLines={1}
+                          >
+                            {property.location.area},{' '}
+                            {property.location.town}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={styles.typeBadge}
+                      >
+                        <Text
+                          style={
+                            styles.typeBadgeText
+                          }
+                        >
+                          {property.type}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Price */}
+                    {isShortStay ? (
+                      <View style={styles.shortStayPriceBlock}>
+                        {hasDayRate && (
+                          <View style={styles.shortStayPriceRow}>
+                            <Text style={styles.price}>
+                              KSh {property.dayRate!.toLocaleString()}
+                            </Text>
+
+                            <Text style={styles.perMonth}>
+                              / day
+                            </Text>
+                          </View>
+                        )}
+
+                        {hasNightRate && (
+                          <View style={styles.shortStayPriceRow}>
+                            <Text style={styles.priceSecondary}>
+                              KSh {property.nightRate!.toLocaleString()}
+                            </Text>
+
+                            <Text style={styles.perMonth}>
+                              / night
+                            </Text>
+                          </View>
+                        )}
+
+                        {hasDayNightRate && (
+                          <View style={styles.shortStayPriceRow}>
+                            <Text style={styles.priceSecondary}>
+                              KSh {property.dayNightRate!.toLocaleString()}
+                            </Text>
+
+                            <Text style={styles.perMonth}>
+                              / day & night
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ) : (
+                      <View style={styles.priceRow}>
+                        <Text style={styles.price}>
+                          KSh{' '}
+                          {property.rent.toLocaleString()}
+                        </Text>
+
+                        <Text style={styles.perMonth}>
+                          / month
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Property stats */}
+                    <View
+                      style={styles.statsRow}
+                    >
+                      <View style={styles.stat}>
+                        <BedDouble
+                          size={16}
+                          color={
+                            COLORS.muted
+                          }
+                          strokeWidth={1.8}
+                        />
+
+                        <Text
+                          style={
+                            styles.statText
+                          }
+                        >
+                          {property.bedrooms}{' '}
+                          bed
+                        </Text>
+                      </View>
+
+                      <View style={styles.stat}>
+                        <Bath
+                          size={16}
+                          color={
+                            COLORS.muted
+                          }
+                          strokeWidth={1.8}
+                        />
+
+                        <Text
+                          style={
+                            styles.statText
+                          }
+                        >
+                          {property.bathrooms}{' '}
+                          bath
+                        </Text>
+                      </View>
+
+                      {property.size && (
+                        <View
+                          style={styles.stat}
+                        >
+                          <Ruler
+                            size={16}
+                            color={
+                              COLORS.muted
+                            }
+                            strokeWidth={1.8}
+                          />
+
+                          <Text
+                            style={
+                              styles.statText
+                            }
+                          >
+                            {property.size}
+                          </Text>
+                        </View>
+                      )}
+
+                      {isShortStay &&
+                        property.rooms != null && (
+                          <View style={styles.stat}>
+                            <Text style={styles.roomIcon}>
+                              R
+                            </Text>
+
+                            <Text style={styles.statText}>
+                              {property.rooms} rooms
+                            </Text>
+                          </View>
+                        )}
+
+                      {isShortStay &&
+                        property.maxGuests != null && (
+                          <View style={styles.stat}>
+                            <Text style={styles.guestIcon}>
+                              G
+                            </Text>
+
+                            <Text style={styles.statText}>
+                              {property.maxGuests} guests
+                            </Text>
+                          </View>
+                        )}
+                    </View>
+
+                    {/* Footer */}
+                    <View
+                      style={styles.cardFooter}
+                    >
+                      <View>
+                        {isShortStay ? (
+                          <>
+                            <Text style={styles.depositLabel}>
+                              Viewing fee
+                            </Text>
+
+                            <Text style={styles.depositValue}>
+                              KSh{' '}
+                              {(property.viewingFee ?? 0).toLocaleString()}
+                            </Text>
+                          </>
+                        ) : (
+                          <>
+                            <Text
+                              style={
+                                styles.depositLabel
+                              }
+                            >
+                              Deposit
+                            </Text>
+
+                            <Text
+                              style={
+                                styles.depositValue
+                              }
+                            >
+                              KSh{' '}
+                              {property.deposit.toLocaleString()}
+                            </Text>
+                          </>
+                        )}
+                      </View>
+
+                      <View
+                        style={
+                          styles.viewButton
+                        }
+                      >
+                        <Text
+                          style={
+                            styles.viewButtonText
+                          }
+                        >
+                          View home
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+
+          <View
+            style={styles.bottomSpacing}
+          />
+        </ScrollView>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create<Styles>({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  headerText: {
+    flex: 1,
+    marginLeft: 13,
+  },
+
+  eyebrow: {
+    color: COLORS.lime,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+  },
+
+  title: {
+    color: COLORS.white,
+    fontSize: 24,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+
+  headerSpacer: {
+    width: 42,
+  },
+
+  intro: {
+    paddingHorizontal: 18,
+    paddingTop: 8,
+  },
+
+  introTitle: {
+    color: COLORS.white,
+    fontSize: 19,
+    fontWeight: '700',
+  },
+
+  introSubtitle: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 5,
+    maxWidth: 350,
+  },
+
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    marginTop: 18,
+    marginBottom: 4,
+  },
+
+  resultCount: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  resultDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.muted,
+    marginHorizontal: 8,
+  },
+
+  resultLabel: {
+    color: COLORS.muted,
+    fontSize: 12,
+  },
+
+  listContent: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+  },
+
+  propertyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 16,
+  },
+
+  imageContainer: {
+    height: 220,
+    position: 'relative',
+    backgroundColor: COLORS.cardSoft,
+  },
+
+  propertyImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  imagePlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.cardSoft,
+  },
+
+  badgeRow: {
+    position: 'absolute',
+    top: 13,
+    left: 13,
+    right: 65,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.lime,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+    gap: 4,
+  },
+
+  verifiedText: {
+    color: COLORS.background,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  availableBadge: {
+    backgroundColor:
+      'rgba(11,15,16,0.82)',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor:
+      'rgba(255,255,255,0.14)',
+  },
+
+  availableText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  heartButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor:
+      'rgba(11,15,16,0.78)',
+    borderWidth: 1,
+    borderColor:
+      'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  heartButtonSaved: {
+    backgroundColor:
+      'rgba(215,255,95,0.12)',
+    borderColor:
+      'rgba(215,255,95,0.35)',
+  },
+
+  cardContent: {
+    padding: 16,
+  },
+
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+
+  titleArea: {
+    flex: 1,
+    paddingRight: 10,
+  },
+
+  propertyTitle: {
+    color: COLORS.white,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+
+  locationText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginLeft: 5,
+    flex: 1,
+  },
+
+  typeBadge: {
+    backgroundColor: COLORS.cardSoft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+
+  typeBadgeText: {
+    color: COLORS.muted,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 14,
+  },
+
+  shortStayPriceBlock: {
+    marginTop: 14,
+    gap: 4,
+  },
+
+  shortStayPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+
+  price: {
+    color: COLORS.lime,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+
+  priceSecondary: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+
+  perMonth: {
+    color: COLORS.muted,
+    fontSize: 11,
+    marginLeft: 5,
+  },
+
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: 14,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    gap: 14,
+  },
+
+  stat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  statText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    marginLeft: 5,
+  },
+
+  roomIcon: {
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: '900',
+    width: 16,
+    textAlign: 'center',
+  },
+
+  guestIcon: {
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: '900',
+    width: 16,
+    textAlign: 'center',
+  },
+
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 14,
+  },
+
+  depositLabel: {
+    color: COLORS.muted,
+    fontSize: 10,
+  },
+
+  depositValue: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+
+  viewButton: {
+    backgroundColor: COLORS.lime,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+
+  viewButtonText: {
+    color: COLORS.background,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  emptyCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 28,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+
+  emptyIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor:
+      'rgba(215,255,95,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 15,
+  },
+
+  emptyTitle: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+
+  emptyText: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 7,
+  },
+
+  exploreButton: {
+    backgroundColor: COLORS.lime,
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    marginTop: 18,
+  },
+
+  exploreButtonText: {
+    color: COLORS.background,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  bottomSpacing: {
+    height: 30,
+  },
+});

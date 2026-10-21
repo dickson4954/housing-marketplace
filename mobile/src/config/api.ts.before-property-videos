@@ -1,0 +1,182 @@
+export const API_BASE_URL =
+  "https://a5dd-41-90-115-161.ngrok-free.app/api";
+
+export const API_ENDPOINTS = {
+  customerViewings: "/viewings",
+
+  customerViewingById: (viewingId: string) =>
+    `/viewings/${viewingId}`,
+
+  initiateViewingPayment: (viewingId: string) =>
+    `/payments/viewings/${viewingId}`,
+
+  fakeConfirmViewingPayment: (viewingId: string) =>
+    `/payments/viewings/${viewingId}/fake-confirm`,
+
+  /* =======================================================
+  CUSTOMER AUTH
+  ======================================================= */
+
+  customerSignup:
+    "/auth/customer/signup",
+
+  customerLogin:
+    "/auth/customer/login",
+
+  customerVerifyEmail:
+    "/auth/customer/verify-email",
+
+  customerResendVerification:
+    "/auth/customer/resend-verification",
+
+  /* =======================================================
+  ADMIN AUTH
+  ======================================================= */
+
+  adminLogin:
+    "/auth/admin/login",
+
+  /* =======================================================
+  MARKETER AUTH
+  ======================================================= */
+
+  marketerLogin:
+    "/auth/marketer/login",
+
+  marketerMe:
+    "/marketer/me",
+
+  /* =======================================================
+  GENERAL AUTH
+  ======================================================= */
+
+  me:
+    "/auth/me",
+
+  profile:
+    "/auth/profile",
+
+  changePassword:
+    "/auth/change-password",
+
+  forgotPassword:
+    "/auth/forgot-password",
+
+  resetPassword:
+    "/auth/reset-password",
+
+  /* =======================================================
+  MARKETER PROFILE CHANGE REQUESTS
+  ======================================================= */
+
+  profileChangeRequest:
+    "/auth/profile/change-request",
+
+  profileChangeRequests:
+    "/auth/profile/change-requests",
+
+  /* =======================================================
+  ADMIN
+  ======================================================= */
+
+  adminMarketers:
+    "/admin/marketers",
+
+  adminProperties:
+    "/admin/properties",
+
+  adminViewings:
+    "/admin/viewings",
+
+  adminUsers:
+    "/admin/users",
+
+  adminLandlords:
+    "/admin/landlords",
+
+  adminMarketerProfileChangeRequests:
+    "/admin/marketers/profile-change-requests",
+
+  /* =======================================================
+  LANDLORD PROPERTIES
+  ======================================================= */
+
+  landlordProperties: "/landlord/properties",
+
+  landlordViewings: "/landlord/viewings",
+
+  landlordViewingById: (viewingId: string) =>
+    `/landlord/viewings/${encodeURIComponent(viewingId)}`,
+
+
+  landlordPropertyImages: "/landlord/property-images",
+
+  landlordAmenities: "/landlord/amenities",
+
+  /* =======================================================
+  MARKETER PROPERTIES
+  ======================================================= */
+
+  marketerProperties:
+    "/marketer/properties",
+
+  marketerPropertyById: (propertyId: string) =>
+    `/marketer/properties/${propertyId}`,
+
+  marketerPropertyStatus: (propertyId: string) =>
+    `/marketer/properties/${propertyId}/status`,
+
+  marketerPropertyAvailability: (propertyId: string) =>
+    `/marketer/properties/${propertyId}/availability`,
+
+  marketerAmenities:
+    "/marketer/amenities",
+
+  /* =======================================================
+  PUBLIC PROPERTIES
+  ======================================================= */
+
+  properties:
+    "/properties",
+
+  propertyById:
+    (propertyId: string) =>
+      `/properties/${propertyId}`,
+
+  /* =======================================================
+  CUSTOMER SHORTLIST
+  ======================================================= */
+
+  customerShortlist:
+    "/customer/shortlist",
+
+  customerShortlistByProperty:
+    (propertyId: string) =>
+      `/customer/shortlist/${propertyId}`,
+
+  /* =======================================================
+  PUBLIC GEOGRAPHY
+  ======================================================= */
+
+  geographyCounties:
+    "/geography/counties",
+
+  geographyConstituencies:
+    (countyId: string) =>
+      `/geography/counties/${countyId}/constituencies`,
+
+  geographyWards:
+    (constituencyId: string) =>
+      `/geography/constituencies/${constituencyId}/wards`,
+
+  geographyPlaces:
+    (countyId: string) =>
+      `/geography/counties/${countyId}/places`,
+
+  /* =======================================================
+  MARKETER APPLICATIONS
+  ======================================================= */
+
+  marketerApplications:
+    "/marketer-applications",
+} as const;

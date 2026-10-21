@@ -1,0 +1,1777 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { router } from 'expo-router';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Clock3,
+  FileCheck2,
+  FileText,
+  ShieldCheck,
+  TriangleAlert,
+  XCircle,
+} from 'lucide-react-native';
+
+import {
+  MarketerApplication,
+  MarketerApplicationStatus,
+  useMarketers,
+} from '@/context/MarketerContext';
+
+const COLORS = {
+  background: '#0B0F10',
+  card: '#14191B',
+  cardSoft: '#181E20',
+  lime: '#D7FF5F',
+  white: '#FFFFFF',
+  muted: '#9CA5A7',
+  border: '#252C2E',
+
+  green: '#62D39B',
+  orange: '#FFB45B',
+  red: '#FF7070',
+  blue: '#72B7FF',
+};
+
+export default function MarketerApplicationStatusScreen() {
+  const {
+    refreshMyApplicationStatus,
+  } = useMarketers();
+
+  const [application, setApplication] =
+    useState<MarketerApplication | null>(null);
+
+  const [isLoading, setIsLoading] =
+    useState(true);
+
+  const [isRefreshing, setIsRefreshing] =
+    useState(false);
+
+  const [errorMessage, setErrorMessage] =
+    useState<string | null>(null);
+
+  const loadApplication = useCallback(
+    async (showRefreshIndicator = false) => {
+      if (showRefreshIndicator) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+
+      setErrorMessage(null);
+
+      try {
+        const result =
+          await refreshMyApplicationStatus();
+
+        setApplication(result);
+      } catch (error) {
+        console.error(
+          'MARKETER APPLICATION STATUS SCREEN ERROR:',
+          error,
+        );
+
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load your application status.',
+        );
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [refreshMyApplicationStatus],
+  );
+
+  useEffect(() => {
+    void loadApplication();
+  }, [loadApplication]);
+
+  const submittedDate = useMemo(() => {
+    if (!application?.submittedAt) {
+      return 'Not available';
+    }
+
+    const date = new Date(
+      application.submittedAt,
+    );
+
+    if (Number.isNaN(date.getTime())) {
+      return 'Not available';
+    }
+
+    return date.toLocaleDateString('en-KE', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }, [application?.submittedAt]);
+
+  const reviewedDate = useMemo(() => {
+    if (!application?.reviewedAt) {
+      return null;
+    }
+
+    const date = new Date(
+      application.reviewedAt,
+    );
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date.toLocaleDateString('en-KE', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }, [application?.reviewedAt]);
+
+  const approvedDate = useMemo(() => {
+    if (!application?.approvedAt) {
+      return null;
+    }
+
+    const date = new Date(
+      application.approvedAt,
+    );
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date.toLocaleDateString('en-KE', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }, [application?.approvedAt]);
+
+  const rejectedDate = useMemo(() => {
+    if (!application?.rejectedAt) {
+      return null;
+    }
+
+    const date = new Date(
+      application.rejectedAt,
+    );
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date.toLocaleDateString('en-KE', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }, [application?.rejectedAt]);
+
+  const getStatusConfig = (
+    status: MarketerApplicationStatus,
+  ) => {
+    switch (status) {
+      case 'PENDING':
+        return {
+          icon: (
+            <Clock3
+              size={30}
+              color={COLORS.orange}
+            />
+          ),
+          iconBackground:
+            'rgba(255,180,91,0.12)',
+          color: COLORS.orange,
+          label: 'Pending review',
+          title:
+            'Your application is in the queue',
+          description:
+            "We've received your application. The MAKAZII team will review the information you submitted before making a decision.",
+        };
+
+      case 'UNDER_REVIEW':
+        return {
+          icon: (
+            <FileCheck2
+              size={30}
+              color={COLORS.blue}
+            />
+          ),
+          iconBackground:
+            'rgba(114,183,255,0.12)',
+          color: COLORS.blue,
+          label: 'Under review',
+          title:
+            'Your application is being reviewed',
+          description:
+            'The MAKAZII team is currently reviewing your application and the information you provided.',
+        };
+
+      case 'ACTION_REQUIRED':
+        return {
+          icon: (
+            <TriangleAlert
+              size={30}
+              color={COLORS.orange}
+            />
+          ),
+          iconBackground:
+            'rgba(255,180,91,0.12)',
+          color: COLORS.orange,
+          label: 'Action required',
+          title:
+            'We need you to update your application',
+          description:
+            'The MAKAZII team has requested some changes or additional information before your application can continue.',
+        };
+
+      case 'APPROVED':
+        return {
+          icon: (
+            <CheckCircle2
+              size={30}
+              color={COLORS.green}
+            />
+          ),
+          iconBackground:
+            'rgba(98,211,155,0.12)',
+          color: COLORS.green,
+          label: 'Approved',
+          title: 'Welcome to MAKAZII',
+          description:
+            'Your marketer application has been approved. Your marketer portal access is now available.',
+        };
+
+      case 'REJECTED':
+        return {
+          icon: (
+            <XCircle
+              size={30}
+              color={COLORS.red}
+            />
+          ),
+          iconBackground:
+            'rgba(255,112,112,0.12)',
+          color: COLORS.red,
+          label: 'Application not approved',
+          title:
+            'Your application was not approved',
+          description:
+            'The MAKAZII team has completed its review of your application.',
+        };
+
+      default:
+        return {
+          icon: (
+            <FileText
+              size={30}
+              color={COLORS.muted}
+            />
+          ),
+          iconBackground: COLORS.cardSoft,
+          color: COLORS.muted,
+          label: 'Application',
+          title: 'Application status',
+          description:
+            'Your MAKAZII marketer application status is shown below.',
+        };
+    }
+  };
+
+  const handlePrimaryAction = () => {
+    if (!application) {
+      router.replace('/marketer/apply');
+      return;
+    }
+
+    if (application.status === 'APPROVED') {
+      router.replace('/marketer/dashboard');
+      return;
+    }
+
+    if (
+      application.status === 'ACTION_REQUIRED'
+    ) {
+      router.replace({
+        pathname: '/marketer/apply',
+        params: { mode: 'update' },
+      });
+      return;
+    }
+
+    if (application.status === 'REJECTED') {
+      router.replace('/marketer/apply');
+    }
+  };
+
+  /* ------------------------------------------------------------------------ */
+  /* LOADING                                                                   */
+  /* ------------------------------------------------------------------------ */
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={() =>
+              router.replace('/marketer')
+            }
+            style={({ pressed }) => [
+              styles.backButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <ArrowLeft
+              size={20}
+              color={COLORS.white}
+            />
+          </Pressable>
+
+          <View style={styles.brandWrap}>
+            <Text style={styles.brand}>
+              MAKAZII
+            </Text>
+
+            <Text style={styles.brandLabel}>
+              APPLICATION STATUS
+            </Text>
+          </View>
+
+          <View style={styles.topBarSpacer} />
+        </View>
+
+        <View style={styles.loadingContent}>
+          <View style={styles.loadingIcon}>
+            <FileText
+              size={30}
+              color={COLORS.lime}
+            />
+          </View>
+
+          <ActivityIndicator
+            size="small"
+            color={COLORS.lime}
+            style={styles.loadingSpinner}
+          />
+
+          <Text style={styles.loadingTitle}>
+            Checking your application
+          </Text>
+
+          <Text style={styles.loadingDescription}>
+            We're getting the latest status from
+            MAKAZII.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* ERROR                                                                     */
+  /* ------------------------------------------------------------------------ */
+
+  if (errorMessage) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={() =>
+              router.replace('/marketer')
+            }
+            style={({ pressed }) => [
+              styles.backButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <ArrowLeft
+              size={20}
+              color={COLORS.white}
+            />
+          </Pressable>
+
+          <View style={styles.brandWrap}>
+            <Text style={styles.brand}>
+              MAKAZII
+            </Text>
+
+            <Text style={styles.brandLabel}>
+              APPLICATION STATUS
+            </Text>
+          </View>
+
+          <View style={styles.topBarSpacer} />
+        </View>
+
+        <View style={styles.emptyContent}>
+          <View
+            style={[
+              styles.emptyIcon,
+              {
+                backgroundColor:
+                  'rgba(255,112,112,0.08)',
+                borderColor:
+                  'rgba(255,112,112,0.25)',
+              },
+            ]}
+          >
+            <TriangleAlert
+              size={32}
+              color={COLORS.red}
+            />
+          </View>
+
+          <Text style={styles.emptyTitle}>
+            Unable to load status
+          </Text>
+
+          <Text style={styles.emptyDescription}>
+            {errorMessage}
+          </Text>
+
+          <Pressable
+            onPress={() => {
+              void loadApplication();
+            }}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed &&
+                styles.primaryButtonPressed,
+            ]}
+          >
+            <Text style={styles.primaryButtonText}>
+              Try again
+            </Text>
+
+            <ArrowRight
+              size={19}
+              color={COLORS.background}
+              strokeWidth={2.5}
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={() =>
+              router.replace('/marketer')
+            }
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              pressed &&
+                styles.secondaryButtonPressed,
+            ]}
+          >
+            <Text style={styles.secondaryButtonText}>
+              Back to marketer page
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* NO APPLICATION                                                            */
+  /* ------------------------------------------------------------------------ */
+
+  if (!application) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+
+        <View style={styles.topBar}>
+          <Pressable
+            onPress={() =>
+              router.replace('/marketer')
+            }
+            style={({ pressed }) => [
+              styles.backButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <ArrowLeft
+              size={20}
+              color={COLORS.white}
+            />
+          </Pressable>
+
+          <View style={styles.brandWrap}>
+            <Text style={styles.brand}>
+              MAKAZII
+            </Text>
+
+            <Text style={styles.brandLabel}>
+              APPLICATION STATUS
+            </Text>
+          </View>
+
+          <View style={styles.topBarSpacer} />
+        </View>
+
+        <View style={styles.emptyContent}>
+          <View style={styles.emptyIcon}>
+            <FileText
+              size={32}
+              color={COLORS.muted}
+            />
+          </View>
+
+          <Text style={styles.emptyTitle}>
+            No application found
+          </Text>
+
+          <Text style={styles.emptyDescription}>
+            We couldn't find an active marketer
+            application linked to this device.
+            If you have already submitted an
+            application, make sure you're using the
+            same device where you submitted it.
+          </Text>
+
+          <Pressable
+            onPress={() =>
+              router.replace('/marketer/apply')
+            }
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed &&
+                styles.primaryButtonPressed,
+            ]}
+          >
+            <Text style={styles.primaryButtonText}>
+              Apply as a marketer
+            </Text>
+
+            <ArrowRight
+              size={19}
+              color={COLORS.background}
+              strokeWidth={2.5}
+            />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  const statusConfig = getStatusConfig(
+    application.status,
+  );
+
+  const showActionMessage =
+    application.status === 'ACTION_REQUIRED' &&
+    !!application.requestedChanges;
+
+  const showRejectionReason =
+    application.status === 'REJECTED' &&
+    !!application.rejectionReason;
+
+  const showPrimaryButton =
+    application.status === 'APPROVED' ||
+    application.status === 'ACTION_REQUIRED' ||
+    application.status === 'REJECTED';
+
+  const timelineStep =
+    application.status === 'PENDING'
+      ? 0
+      : application.status === 'UNDER_REVIEW'
+        ? 1
+        : application.status ===
+            'ACTION_REQUIRED'
+          ? 2
+          : 3;
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      <View style={styles.topBar}>
+        <Pressable
+          onPress={() =>
+            router.replace('/marketer')
+          }
+          style={({ pressed }) => [
+            styles.backButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <ArrowLeft
+            size={20}
+            color={COLORS.white}
+          />
+        </Pressable>
+
+        <View style={styles.brandWrap}>
+          <Text style={styles.brand}>
+            MAKAZII
+          </Text>
+
+          <Text style={styles.brandLabel}>
+            APPLICATION STATUS
+          </Text>
+        </View>
+
+        <View style={styles.topBarSpacer} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() =>
+              void loadApplication(true)
+            }
+            tintColor={COLORS.lime}
+            colors={[COLORS.lime]}
+          />
+        }
+      >
+        <View style={styles.hero}>
+          <View
+            style={[
+              styles.statusIcon,
+              {
+                backgroundColor:
+                  statusConfig.iconBackground,
+              },
+            ]}
+          >
+            {statusConfig.icon}
+          </View>
+
+          <View
+            style={[
+              styles.statusPill,
+              {
+                borderColor:
+                  statusConfig.color,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.statusDot,
+                {
+                  backgroundColor:
+                    statusConfig.color,
+                },
+              ]}
+            />
+
+            <Text
+              style={[
+                styles.statusPillText,
+                {
+                  color:
+                    statusConfig.color,
+                },
+              ]}
+            >
+              {statusConfig.label}
+            </Text>
+          </View>
+
+          <Text style={styles.heroTitle}>
+            {statusConfig.title}
+          </Text>
+
+          <Text style={styles.heroDescription}>
+            {statusConfig.description}
+          </Text>
+        </View>
+
+        <View style={styles.applicationCard}>
+          <View style={styles.applicationHeader}>
+            <View>
+              <Text style={styles.sectionEyebrow}>
+                APPLICATION
+              </Text>
+
+              <Text
+                style={
+                  styles.applicationCardTitle
+                }
+              >
+                Application details
+              </Text>
+            </View>
+
+            <View style={styles.applicationIcon}>
+              <FileText
+                size={20}
+                color={COLORS.lime}
+              />
+            </View>
+          </View>
+
+          <DetailRow
+            label="Application ID"
+            value={application.id}
+          />
+
+          <DetailRow
+            label="Applicant"
+            value={`${application.firstName} ${application.lastName}`}
+          />
+
+          <DetailRow
+            label="Submitted"
+            value={submittedDate}
+          />
+
+          <DetailRow
+            label="County"
+            value={
+              application.county ||
+              'Not available'
+            }
+          />
+
+          <DetailRow
+            label="Constituency"
+            value={
+              application.constituencyId ||
+              'Not available'
+            }
+          />
+
+          <DetailRow
+            label="Wards"
+            value={
+              application.wardIds?.length > 0
+                ? application.wardIds.join(', ')
+                : 'Not available'
+            }
+            last
+          />
+        </View>
+
+        {reviewedDate && (
+          <View style={styles.infoCard}>
+            <View style={styles.infoIcon}>
+              <FileCheck2
+                size={19}
+                color={COLORS.blue}
+              />
+            </View>
+
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>
+                Application reviewed
+              </Text>
+
+              <Text style={styles.infoText}>
+                Your application was reviewed on{' '}
+                {reviewedDate}.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {approvedDate &&
+          application.status === 'APPROVED' && (
+            <View
+              style={[
+                styles.infoCard,
+                {
+                  borderColor:
+                    'rgba(98,211,155,0.25)',
+                  backgroundColor:
+                    'rgba(98,211,155,0.06)',
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.infoIcon,
+                  {
+                    backgroundColor:
+                      'rgba(98,211,155,0.10)',
+                  },
+                ]}
+              >
+                <CheckCircle2
+                  size={19}
+                  color={COLORS.green}
+                />
+              </View>
+
+              <View style={styles.infoContent}>
+                <Text
+                  style={[
+                    styles.infoTitle,
+                    {
+                      color: COLORS.green,
+                    },
+                  ]}
+                >
+                  Application approved
+                </Text>
+
+                <Text style={styles.infoText}>
+                  Your marketer application was
+                  approved on {approvedDate}.
+                </Text>
+              </View>
+            </View>
+          )}
+
+        {rejectedDate &&
+          application.status === 'REJECTED' && (
+            <View
+              style={[
+                styles.infoCard,
+                {
+                  borderColor:
+                    'rgba(255,112,112,0.25)',
+                  backgroundColor:
+                    'rgba(255,112,112,0.06)',
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.infoIcon,
+                  {
+                    backgroundColor:
+                      'rgba(255,112,112,0.10)',
+                  },
+                ]}
+              >
+                <XCircle
+                  size={19}
+                  color={COLORS.red}
+                />
+              </View>
+
+              <View style={styles.infoContent}>
+                <Text
+                  style={[
+                    styles.infoTitle,
+                    {
+                      color: COLORS.red,
+                    },
+                  ]}
+                >
+                  Application decision
+                </Text>
+
+                <Text style={styles.infoText}>
+                  The application review was
+                  completed on {rejectedDate}.
+                </Text>
+              </View>
+            </View>
+          )}
+
+        {showActionMessage && (
+          <MessageCard
+            icon={
+              <TriangleAlert
+                size={21}
+                color={COLORS.orange}
+              />
+            }
+            title="Changes requested"
+            text={application.requestedChanges!}
+            tone="orange"
+          />
+        )}
+
+        {showRejectionReason && (
+          <MessageCard
+            icon={
+              <XCircle
+                size={21}
+                color={COLORS.red}
+              />
+            }
+            title="Review outcome"
+            text={application.rejectionReason!}
+            tone="red"
+          />
+        )}
+
+        <TimelineCard
+          activeStep={timelineStep}
+          rejected={
+            application.status === 'REJECTED'
+          }
+        />
+
+        <View style={styles.securityCard}>
+          <View style={styles.securityIcon}>
+            <ShieldCheck
+              size={20}
+              color={COLORS.lime}
+            />
+          </View>
+
+          <View style={styles.securityContent}>
+            <Text style={styles.securityTitle}>
+              Your information is protected
+            </Text>
+
+            <Text style={styles.securityText}>
+              Identity documents and other sensitive
+              application information are restricted
+              to authorized MAKAZII administrators.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.reviewTimeCard}>
+          <Clock3
+            size={18}
+            color={COLORS.muted}
+          />
+
+          <Text style={styles.reviewTimeText}>
+            Most applications are reviewed within
+            2 business days.
+          </Text>
+        </View>
+
+        {showPrimaryButton && (
+          <Pressable
+            onPress={handlePrimaryAction}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed &&
+                styles.primaryButtonPressed,
+            ]}
+          >
+            <Text style={styles.primaryButtonText}>
+              {application.status ===
+              'APPROVED'
+                ? 'Enter Marketer Portal'
+                : application.status ===
+                    'ACTION_REQUIRED'
+                  ? 'Update Application'
+                  : 'Apply Again'}
+            </Text>
+
+            <ArrowRight
+              size={19}
+              color={COLORS.background}
+              strokeWidth={2.5}
+            />
+          </Pressable>
+        )}
+
+        <Pressable
+          onPress={() =>
+            router.replace('/marketer')
+          }
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            pressed &&
+              styles.secondaryButtonPressed,
+          ]}
+        >
+          <Text style={styles.secondaryButtonText}>
+            Back to marketer page
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* DETAIL ROW                                                                  */
+/* -------------------------------------------------------------------------- */
+
+function DetailRow({
+  label,
+  value,
+  last = false,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.detailRow,
+        !last && styles.detailRowBorder,
+      ]}
+    >
+      <Text style={styles.detailLabel}>
+        {label}
+      </Text>
+
+      <Text
+        style={styles.detailValue}
+        numberOfLines={3}
+      >
+        {value || 'Not provided'}
+      </Text>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* MESSAGE CARD                                                                */
+/* -------------------------------------------------------------------------- */
+
+function MessageCard({
+  icon,
+  title,
+  text,
+  tone,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+  tone: 'orange' | 'red';
+}) {
+  const toneColor =
+    tone === 'orange'
+      ? COLORS.orange
+      : COLORS.red;
+
+  const toneBackground =
+    tone === 'orange'
+      ? 'rgba(255,180,91,0.08)'
+      : 'rgba(255,112,112,0.08)';
+
+  return (
+    <View
+      style={[
+        styles.messageCard,
+        {
+          borderColor: `${toneColor}55`,
+          backgroundColor: toneBackground,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.messageIcon,
+          {
+            backgroundColor: `${toneColor}18`,
+          },
+        ]}
+      >
+        {icon}
+      </View>
+
+      <View style={styles.messageContent}>
+        <Text
+          style={[
+            styles.messageTitle,
+            {
+              color: toneColor,
+            },
+          ]}
+        >
+          {title}
+        </Text>
+
+        <Text style={styles.messageText}>
+          {text}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* INFO CARD                                                                   */
+/* -------------------------------------------------------------------------- */
+
+function InfoCard() {
+  return null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* TIMELINE                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function TimelineCard({
+  activeStep,
+  rejected = false,
+}: {
+  activeStep: number;
+  rejected?: boolean;
+}) {
+  const steps = [
+    {
+      title: 'Application submitted',
+      text: 'Your application has been received.',
+    },
+    {
+      title: 'Application review',
+      text: 'The MAKAZII team reviews your information.',
+    },
+    {
+      title: 'Additional action',
+      text: 'Any requested updates can be submitted.',
+    },
+    {
+      title: 'Decision',
+      text: rejected
+        ? 'The application review has been completed.'
+        : 'Approved applications receive portal access.',
+    },
+  ];
+
+  return (
+    <View style={styles.timelineCard}>
+      <Text style={styles.sectionEyebrow}>
+        APPLICATION PROGRESS
+      </Text>
+
+      <Text style={styles.timelineTitle}>
+        Review process
+      </Text>
+
+      <View style={styles.timeline}>
+        {steps.map((item, index) => {
+          const completed =
+            index < activeStep;
+
+          const active =
+            index === activeStep;
+
+          const isRejectedEnd =
+            rejected && index === 3;
+
+          return (
+            <View
+              key={item.title}
+              style={styles.timelineItem}
+            >
+              <View style={styles.timelineLeft}>
+                <View
+                  style={[
+                    styles.timelineCircle,
+                    completed &&
+                      styles.timelineCircleCompleted,
+                    active &&
+                      styles.timelineCircleActive,
+                    isRejectedEnd &&
+                      styles.timelineCircleRejected,
+                  ]}
+                >
+                  {completed ? (
+                    <Check
+                      size={13}
+                      color={COLORS.background}
+                      strokeWidth={3}
+                    />
+                  ) : isRejectedEnd ? (
+                    <XCircle
+                      size={15}
+                      color={COLORS.red}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.timelineDot,
+                        active &&
+                          styles.timelineDotActive,
+                      ]}
+                    />
+                  )}
+                </View>
+
+                {index < steps.length - 1 && (
+                  <View
+                    style={[
+                      styles.timelineLine,
+                      index < activeStep &&
+                        styles.timelineLineCompleted,
+                    ]}
+                  />
+                )}
+              </View>
+
+              <View
+                style={
+                  styles.timelineContent
+                }
+              >
+                <Text
+                  style={[
+                    styles.timelineItemTitle,
+                    active &&
+                      styles.timelineItemTitleActive,
+                  ]}
+                >
+                  {item.title}
+                </Text>
+
+                <Text
+                  style={
+                    styles.timelineItemText
+                  }
+                >
+                  {item.text}
+                </Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* STYLES                                                                      */
+/* -------------------------------------------------------------------------- */
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  topBar: {
+    height: 68,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  topBarSpacer: {
+    width: 42,
+  },
+
+  pressed: {
+    opacity: 0.7,
+  },
+
+  brandWrap: {
+    alignItems: 'center',
+  },
+
+  brand: {
+    color: COLORS.white,
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+
+  brandLabel: {
+    color: COLORS.muted,
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 1.3,
+    marginTop: 3,
+  },
+
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 45,
+  },
+
+  hero: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 28,
+  },
+
+  statusIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+
+  statusPill: {
+    minHeight: 30,
+    paddingHorizontal: 12,
+    borderRadius: 15,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 13,
+  },
+
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    marginRight: 7,
+  },
+
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  heroTitle: {
+    color: COLORS.white,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+
+  heroDescription: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 10,
+    maxWidth: 370,
+  },
+
+  applicationCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    paddingHorizontal: 15,
+    marginBottom: 17,
+  },
+
+  applicationHeader: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+
+  sectionEyebrow: {
+    color: COLORS.lime,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginBottom: 5,
+  },
+
+  applicationCardTitle: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  applicationIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: COLORS.cardSoft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  detailRow: {
+    minHeight: 57,
+    paddingVertical: 10,
+    justifyContent: 'center',
+  },
+
+  detailRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+
+  detailLabel: {
+    color: COLORS.muted,
+    fontSize: 9,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+
+  detailValue: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  infoCard: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 17,
+    padding: 14,
+    marginBottom: 17,
+  },
+
+  infoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor:
+      'rgba(114,183,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  infoContent: {
+    flex: 1,
+  },
+
+  infoTitle: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+
+  infoText: {
+    color: COLORS.muted,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+
+  messageCard: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: 17,
+    padding: 14,
+    marginBottom: 17,
+  },
+
+  messageIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  messageContent: {
+    flex: 1,
+  },
+
+  messageTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 5,
+  },
+
+  messageText: {
+    color: COLORS.muted,
+    fontSize: 11,
+    lineHeight: 17,
+  },
+
+  timelineCard: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 17,
+  },
+
+  timelineTitle: {
+    color: COLORS.white,
+    fontSize: 17,
+    fontWeight: '900',
+    marginBottom: 20,
+  },
+
+  timeline: {
+    paddingTop: 2,
+  },
+
+  timelineItem: {
+    flexDirection: 'row',
+    minHeight: 68,
+  },
+
+  timelineLeft: {
+    width: 34,
+    alignItems: 'center',
+  },
+
+  timelineCircle: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+
+  timelineCircleCompleted: {
+    backgroundColor: COLORS.lime,
+    borderColor: COLORS.lime,
+  },
+
+  timelineCircleActive: {
+    borderColor: COLORS.lime,
+  },
+
+  timelineCircleRejected: {
+    borderColor: COLORS.red,
+    backgroundColor:
+      'rgba(255,112,112,0.08)',
+  },
+
+  timelineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.muted,
+  },
+
+  timelineDotActive: {
+    backgroundColor: COLORS.lime,
+  },
+
+  timelineLine: {
+    width: 1,
+    flex: 1,
+    backgroundColor: COLORS.border,
+    marginTop: -1,
+    marginBottom: -1,
+  },
+
+  timelineLineCompleted: {
+    backgroundColor: COLORS.lime,
+  },
+
+  timelineContent: {
+    flex: 1,
+    paddingLeft: 10,
+    paddingBottom: 15,
+  },
+
+  timelineItemTitle: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 2,
+    marginBottom: 4,
+  },
+
+  timelineItemTitleActive: {
+    color: COLORS.white,
+  },
+
+  timelineItemText: {
+    color: '#747E80',
+    fontSize: 10,
+    lineHeight: 15,
+  },
+
+  securityCard: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.cardSoft,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 17,
+    padding: 14,
+    marginBottom: 12,
+  },
+
+  securityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  securityContent: {
+    flex: 1,
+  },
+
+  securityTitle: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+
+  securityText: {
+    color: COLORS.muted,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+
+  reviewTimeCard: {
+    minHeight: 45,
+    borderRadius: 13,
+    paddingHorizontal: 13,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 17,
+  },
+
+  reviewTimeText: {
+    flex: 1,
+    color: COLORS.muted,
+    fontSize: 10,
+    lineHeight: 15,
+    marginLeft: 9,
+  },
+
+  primaryButton: {
+    minHeight: 56,
+    borderRadius: 16,
+    backgroundColor: COLORS.lime,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+
+  primaryButtonPressed: {
+    opacity: 0.82,
+  },
+
+  primaryButtonText: {
+    color: COLORS.background,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+
+  secondaryButton: {
+    minHeight: 50,
+    borderRadius: 15,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  secondaryButtonPressed: {
+    opacity: 0.7,
+  },
+
+  secondaryButtonText: {
+    color: COLORS.muted,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  loadingContent: {
+    flex: 1,
+    paddingHorizontal: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 60,
+  },
+
+  loadingIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+
+  loadingSpinner: {
+    marginBottom: 15,
+  },
+
+  loadingTitle: {
+    color: COLORS.white,
+    fontSize: 21,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  loadingDescription: {
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 9,
+    maxWidth: 350,
+  },
+
+  emptyContent: {
+    flex: 1,
+    paddingHorizontal: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 60,
+  },
+
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+
+  emptyTitle: {
+    color: COLORS.white,
+    fontSize: 25,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
+  emptyDescription: {
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 25,
+    maxWidth: 370,
+  },
+});
