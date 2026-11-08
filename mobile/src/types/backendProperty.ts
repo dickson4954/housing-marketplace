@@ -30,6 +30,7 @@ shortStayType?: string | null;
 monthlyRent?: number | null;
 deposit?: number | null;
 viewingFee?: number | null;
+inspectionFee?: number | null;
 serviceCharge?: number | null;
 
 dayRate?: number | null;

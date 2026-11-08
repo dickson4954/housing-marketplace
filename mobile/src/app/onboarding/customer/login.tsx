@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
   ArrowLeft,
@@ -203,7 +204,7 @@ export default function CustomerLoginScreen() {
         </Text>
 
         <Text style={styles.successText}>
-          You're signed in to MAKAZII.
+          You&apos;re signed in to MAKAZII.
           {'\n\n'}
           Taking you to your home search...
         </Text>
@@ -223,7 +224,8 @@ export default function CustomerLoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
       style={styles.screen}
       behavior={
         Platform.OS === 'ios'
@@ -538,7 +540,7 @@ export default function CustomerLoginScreen() {
           {/* Sign up */}
           <View style={styles.signupPrompt}>
             <Text style={styles.signupPromptText}>
-              Don't have a MAKAZII account?
+              Don&apos;t have a MAKAZII account?
             </Text>
 
             <Pressable
@@ -577,7 +579,8 @@ export default function CustomerLoginScreen() {
           </Text>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -589,6 +592,7 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     flexGrow: 1,
+    paddingTop: 12,
   },
 
   container: {
@@ -597,7 +601,7 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     alignSelf: 'center',
     paddingHorizontal: 22,
-    paddingTop: 18,
+    paddingTop: 0,
     paddingBottom: 30,
   },
 

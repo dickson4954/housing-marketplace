@@ -26,6 +26,7 @@ import {
   UserRound,
 } from 'lucide-react-native';
 import { API_BASE_URL } from '@/config/api';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const C = {
   background: '#0B0F10',
@@ -302,7 +303,11 @@ export default function AdminViewingDetailsScreen() {
   }, [viewingId]);
 
   useEffect(() => {
-    void loadViewing();
+    const timer = setTimeout(() => {
+      void loadViewing();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadViewing]);
 
   const approveViewing = () => {
@@ -355,15 +360,15 @@ export default function AdminViewingDetailsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <SafeAreaView style={styles.center} edges={["top", "left", "right"]}>
         <ActivityIndicator size="large" color={C.lime} />
         <Text style={styles.mutedText}>Loading viewing details...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={20} color={C.white} />
@@ -559,7 +564,7 @@ export default function AdminViewingDetailsScreen() {
           <View style={styles.bottomSpace} />
         </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

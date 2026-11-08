@@ -359,7 +359,11 @@ export default function MarketerVerificationScreen() {
   );
 
   useEffect(() => {
-    void loadProperties();
+    const timer = setTimeout(() => {
+      void loadProperties();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadProperties]);
 
   const handleRefresh = useCallback(

@@ -175,8 +175,57 @@ export default function LandlordActivityScreen() {
   }, [landlordId]);
 
   useEffect(() => {
-    void loadActivity();
-  }, [loadActivity]);
+    let active = true;
+
+    async function loadInitialActivity() {
+      if (!landlordId) {
+        setError('Missing landlord ID.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const encodedId = encodeURIComponent(landlordId);
+        const [detailResult, performanceResult] = await Promise.all([
+          apiRequest(`/admin/landlords/${encodedId}`),
+          apiRequest(`/admin/landlords/${encodedId}/performance`),
+        ]);
+
+        const landlord =
+          detailResult.landlord ??
+          detailResult.data?.landlord ??
+          detailResult.data;
+        const stats = performanceResult.data ?? performanceResult;
+
+        if (!landlord) {
+          throw new Error('The landlord record was not returned by the server.');
+        }
+
+        if (active) {
+          setDetail(landlord);
+          setPerformance(stats);
+        }
+      } catch (e) {
+        if (active) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : 'Unable to load landlord activity.',
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadInitialActivity();
+
+    return () => {
+      active = false;
+    };
+  }, [landlordId]);
 
   const name = [detail?.user?.firstName, detail?.user?.lastName]
     .filter(Boolean).join(' ') || 'Landlord';

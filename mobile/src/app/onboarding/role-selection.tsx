@@ -83,7 +83,7 @@ export default function RoleSelection() {
               </Text>
 
               <Text style={styles.customerTitle}>
-                I'm looking for a home
+                I&apos;m looking for a home
               </Text>
 
               <Text style={styles.customerDescription}>
@@ -119,7 +119,7 @@ export default function RoleSelection() {
 
             <View style={styles.landlordCardContent}>
               <Text style={styles.landlordLabel}>LIST YOUR PROPERTY</Text>
-              <Text style={styles.landlordTitle}>I'm a landlord</Text>
+              <Text style={styles.landlordTitle}>I&apos;m a landlord</Text>
               <Text style={styles.landlordDescription}>
                 Register, verify your identity, and submit your property for review.
               </Text>

@@ -41,3 +41,11 @@ example
 # generated native folders
 /ios
 /android
+
+# MAKAZII HUB local secrets and configuration backups
+.env.local.backup
+*.backup
+*.before-*
+/backups/
+/route-backups/
+package-lock.json.sdk58-conflict-backup

@@ -12,14 +12,30 @@ export const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, "");
 export const API_ENDPOINTS = {
   customerViewings: "/viewings",
 
+  customerStayInspections: "/stay-inspections",
+
+  customerStayBookings: "/stay-bookings",
+
+  createStayBooking: "/stay-bookings",
+
+  initiateStayBookingPayment: (bookingId: string) =>
+    `/payments/bookings/${encodeURIComponent(bookingId)}`,
+
+  initiateStayBookingBalancePayment: (bookingId: string) =>
+    `/payments/bookings/${encodeURIComponent(bookingId)}/balance`,
+
+
+  initiateInspectionPayment: (inspectionId: string) =>
+    `/payments/inspections/${encodeURIComponent(inspectionId)}`,
+
   customerViewingById: (viewingId: string) =>
     `/viewings/${viewingId}`,
 
   initiateViewingPayment: (viewingId: string) =>
     `/payments/viewings/${viewingId}`,
 
-  fakeConfirmViewingPayment: (viewingId: string) =>
-    `/payments/viewings/${viewingId}/fake-confirm`,
+  customerPaymentStatus: (paymentId: string) =>
+    `/payments/${encodeURIComponent(paymentId)}`,
 
   /* =======================================================
   CUSTOMER AUTH
@@ -102,6 +118,23 @@ export const API_ENDPOINTS = {
   adminViewings:
     "/admin/viewings",
 
+  adminStayBookings: "/admin/stay-bookings",
+
+  adminStayBookingById: (bookingId: string) =>
+    `/admin/stay-bookings/${encodeURIComponent(bookingId)}`,
+
+  confirmAdminStayBooking: (bookingId: string) =>
+    `/admin/stay-bookings/${encodeURIComponent(bookingId)}/confirm`,
+
+  checkInAdminStayBooking: (bookingId: string) =>
+    `/admin/stay-bookings/${encodeURIComponent(bookingId)}/check-in`,
+
+  checkOutAdminStayBooking: (bookingId: string) =>
+    `/admin/stay-bookings/${encodeURIComponent(bookingId)}/check-out`,
+
+  completeAdminStayBooking: (bookingId: string) =>
+    `/admin/stay-bookings/${encodeURIComponent(bookingId)}/complete`,
+
   adminUsers:
     "/admin/users",
 
@@ -118,6 +151,22 @@ export const API_ENDPOINTS = {
   landlordProperties: "/landlord/properties",
 
   landlordViewings: "/landlord/viewings",
+
+  marketerStayBookings: "/marketer/bookings",
+
+  landlordStayBookings: "/landlord/bookings",
+
+  landlordStayBookingById: (bookingId: string) =>
+    `/landlord/bookings/${encodeURIComponent(bookingId)}`,
+
+  confirmLandlordStayBooking: (bookingId: string) =>
+    `/landlord/bookings/${encodeURIComponent(bookingId)}/confirm`,
+
+  checkInLandlordStayBooking: (bookingId: string) =>
+    `/landlord/bookings/${encodeURIComponent(bookingId)}/check-in`,
+
+  checkOutLandlordStayBooking: (bookingId: string) =>
+    `/landlord/bookings/${encodeURIComponent(bookingId)}/check-out`,
 
   landlordViewingById: (viewingId: string) =>
     `/landlord/viewings/${encodeURIComponent(viewingId)}`,

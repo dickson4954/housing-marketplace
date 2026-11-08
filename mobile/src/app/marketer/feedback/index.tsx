@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import {
   AlertTriangle,
@@ -195,7 +196,11 @@ export default function MarketerFeedbackScreen() {
   }, []);
 
   useEffect(() => {
-    void loadFeedback();
+    const timer = setTimeout(() => {
+      void loadFeedback();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadFeedback]);
 
   const ratingCount = ratings.length;
@@ -820,7 +825,7 @@ export default function MarketerFeedbackScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
         <View style={styles.header}>
           <Pressable
             onPress={() => router.back()}
@@ -860,12 +865,12 @@ export default function MarketerFeedbackScreen() {
             Getting the latest customer feedback...
           </Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -968,7 +973,7 @@ export default function MarketerFeedbackScreen() {
           <View style={styles.footerSpace} />
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -982,7 +987,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingTop: 12,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,

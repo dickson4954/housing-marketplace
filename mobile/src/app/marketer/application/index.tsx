@@ -67,20 +67,13 @@ export default function MarketerApplicationStatusScreen() {
     useState<string | null>(null);
 
   const loadApplication = useCallback(
-    async (showRefreshIndicator = false) => {
-      if (showRefreshIndicator) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-
-      setErrorMessage(null);
-
+    async () => {
       try {
         const result =
           await refreshMyApplicationStatus();
 
         setApplication(result);
+        setErrorMessage(null);
       } catch (error) {
         console.error(
           'MARKETER APPLICATION STATUS SCREEN ERROR:',
@@ -101,7 +94,13 @@ export default function MarketerApplicationStatusScreen() {
   );
 
   useEffect(() => {
-    void loadApplication();
+    const timer = setTimeout(() => {
+      void loadApplication();
+    }, 0);
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, [loadApplication]);
 
   const submittedDate = useMemo(() => {
@@ -122,7 +121,7 @@ export default function MarketerApplicationStatusScreen() {
       month: 'long',
       year: 'numeric',
     });
-  }, [application?.submittedAt]);
+  }, [application]);
 
   const reviewedDate = useMemo(() => {
     if (!application?.reviewedAt) {
@@ -142,7 +141,7 @@ export default function MarketerApplicationStatusScreen() {
       month: 'long',
       year: 'numeric',
     });
-  }, [application?.reviewedAt]);
+  }, [application]);
 
   const approvedDate = useMemo(() => {
     if (!application?.approvedAt) {
@@ -162,7 +161,7 @@ export default function MarketerApplicationStatusScreen() {
       month: 'long',
       year: 'numeric',
     });
-  }, [application?.approvedAt]);
+  }, [application]);
 
   const rejectedDate = useMemo(() => {
     if (!application?.rejectedAt) {
@@ -182,7 +181,7 @@ export default function MarketerApplicationStatusScreen() {
       month: 'long',
       year: 'numeric',
     });
-  }, [application?.rejectedAt]);
+  }, [application]);
 
   const getStatusConfig = (
     status: MarketerApplicationStatus,
@@ -378,7 +377,7 @@ export default function MarketerApplicationStatusScreen() {
           </Text>
 
           <Text style={styles.loadingDescription}>
-            We're getting the latest status from
+            We&apos;re getting the latest status from
             MAKAZII.
           </Text>
         </View>
@@ -452,6 +451,8 @@ export default function MarketerApplicationStatusScreen() {
 
           <Pressable
             onPress={() => {
+              setIsLoading(true);
+              setErrorMessage(null);
               void loadApplication();
             }}
             style={({ pressed }) => [
@@ -637,9 +638,11 @@ export default function MarketerApplicationStatusScreen() {
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
-            onRefresh={() =>
-              void loadApplication(true)
-            }
+            onRefresh={() => {
+              setIsRefreshing(true);
+              setErrorMessage(null);
+              void loadApplication();
+            }}
             tintColor={COLORS.lime}
             colors={[COLORS.lime]}
           />
@@ -1269,14 +1272,6 @@ function MessageCard({
 }
 
 /* -------------------------------------------------------------------------- */
-/* INFO CARD                                                                   */
-/* -------------------------------------------------------------------------- */
-
-function InfoCard() {
-  return null;
-}
-
-/* -------------------------------------------------------------------------- */
 /* TIMELINE                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -1468,7 +1463,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 20,
-    paddingTop: 22,
+    paddingTop: 12,
     paddingBottom: 45,
   },
 

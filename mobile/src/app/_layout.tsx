@@ -5,6 +5,8 @@ import {
   ThemeProvider,
   usePathname,
 } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 
 import { PropertyProvider } from '@/context/PropertyContext';
 import { ShortlistProvider } from '@/context/ShortlistContext';
@@ -19,38 +21,33 @@ import AppTabs from '@/components/app-tabs';
 function AppContent() {
   const pathname = usePathname();
 
-  // Admin pages should have their own dashboard navigation.
   const isAdminPage = pathname.startsWith('/admin');
-
-  // Marketer pages should have their own portal navigation.
-  const isMarketerPage =
-    pathname.startsWith('/marketer');
-
-  // Onboarding pages should not have customer bottom navigation.
-  const isOnboardingPage =
-    pathname.startsWith('/onboarding');
-
-  // The initial "/" screen should not have bottom navigation.
+  const isMarketerPage = pathname.startsWith('/marketer');
+  const isOnboardingPage = pathname.startsWith('/onboarding');
   const isInitialPage = pathname === '/';
+  const isStayBookingPage = pathname.startsWith('/stay-booking');
+  const isInspectionPage = pathname.startsWith('/inspection');
+
+  // Keep the floating navigation away from payment and booking actions.
+  const isTransactionPage = isStayBookingPage || isInspectionPage;
 
   const showBottomTabs =
     !isAdminPage &&
     !isMarketerPage &&
     !isOnboardingPage &&
-    !isInitialPage;
+    !isInitialPage &&
+    !isTransactionPage;
 
   return (
     <>
+      <StatusBar style="light" hidden={false} />
       <Stack
         screenOptions={{
           headerShown: false,
           animation: 'fade',
-          contentStyle: {
-            backgroundColor: '#0B0F10',
-          },
+          contentStyle: { backgroundColor: '#0B0F10' },
         }}
       />
-
       {showBottomTabs && <AppTabs />}
     </>
   );
@@ -58,22 +55,24 @@ function AppContent() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider value={DarkTheme}>
-      <CustomerProvider>
-        <PropertyProvider>
-          <ShortlistProvider>
-            <ViewingProvider>
-              <MarketerProvider>
-                <AdminProvider>
-                  <FeedbackProvider>
-                    <AppContent />
-                  </FeedbackProvider>
-                </AdminProvider>
-              </MarketerProvider>
-            </ViewingProvider>
-          </ShortlistProvider>
-        </PropertyProvider>
-      </CustomerProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={DarkTheme}>
+        <CustomerProvider>
+          <PropertyProvider>
+            <ShortlistProvider>
+              <ViewingProvider>
+                <MarketerProvider>
+                  <AdminProvider>
+                    <FeedbackProvider>
+                      <AppContent />
+                    </FeedbackProvider>
+                  </AdminProvider>
+                </MarketerProvider>
+              </ViewingProvider>
+            </ShortlistProvider>
+          </PropertyProvider>
+        </CustomerProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

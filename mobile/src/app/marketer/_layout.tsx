@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Stack, router, usePathname } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const TOKEN_KEY = "makazii_marketer_token";
 
@@ -31,6 +32,7 @@ const navigation = [
   { label: "My Properties", icon: "⌂", route: "/marketer/properties" },
   { label: "Add Property", icon: "+", route: "/marketer/properties/add" },
   { label: "Viewings", icon: "◷", route: "/marketer/viewings" },
+  { label: "Stay Bookings", icon: "▣", route: "/marketer/stay-bookings" },
   { label: "Verification", icon: "◇", route: "/marketer/verification" },
   { label: "Customer Feedback", icon: "☆", route: "/marketer/feedback" },
   { label: "My Profile", icon: "○", route: "/marketer/profile" },
@@ -43,6 +45,7 @@ function pageTitle(pathname: string) {
   if (pathname.startsWith("/marketer/application")) return "My Application";
   if (pathname.startsWith("/marketer/properties")) return "My Properties";
   if (pathname.startsWith("/marketer/viewings")) return "Viewings";
+  if (pathname.startsWith("/marketer/stay-bookings")) return "Stay Bookings";
   if (pathname.startsWith("/marketer/verification")) return "Verification";
   if (pathname.startsWith("/marketer/feedback")) return "Customer Feedback";
   if (pathname.startsWith("/marketer/profile")) return "My Profile";
@@ -56,6 +59,7 @@ function isPortalRoute(pathname: string) {
     pathname.startsWith("/marketer/application") ||
     pathname.startsWith("/marketer/properties") ||
     pathname.startsWith("/marketer/viewings") ||
+    pathname.startsWith("/marketer/stay-bookings") ||
     pathname.startsWith("/marketer/verification") ||
     pathname.startsWith("/marketer/feedback") ||
     pathname.startsWith("/marketer/profile") ||
@@ -211,7 +215,7 @@ export default function MarketerLayout() {
   }
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root} edges={["top"]}>
       {desktop ? sidebar : null}
 
       <View style={styles.main}>
@@ -317,7 +321,7 @@ export default function MarketerLayout() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

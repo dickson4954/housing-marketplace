@@ -5,6 +5,7 @@ import React, {
   useState,
 } from 'react';
 import {
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -158,7 +159,11 @@ export default function ShortlistScreen() {
   );
 
   useEffect(() => {
-    void loadProperties();
+    const timer = setTimeout(() => {
+      void loadProperties();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadProperties]);
 
   const shortlistedProperties =
@@ -184,11 +189,27 @@ export default function ShortlistScreen() {
     router.push(`/property/${propertyId}`);
   };
 
-  const handleViewingPress = (propertyId: string) => {
-    router.push({
-      pathname: '/viewing/[propertyId]',
-      params: { propertyId },
-    });
+  const handleViewingPress = (property: BackendProperty) => {
+    if (property.purpose === 'SHORT_STAY') {
+      router.push({
+        pathname: '/inspection/[propertyId]',
+        params: { propertyId: property.id },
+      } as any);
+      return;
+    }
+
+    if (property.purpose === 'LONG_STAY') {
+      router.push({
+        pathname: '/viewing/[propertyId]',
+        params: { propertyId: property.id },
+      } as any);
+      return;
+    }
+
+    Alert.alert(
+      'Property type unavailable',
+      'We cannot determine the correct action for this property.',
+    );
   };
 
   const goToExplore = () => {
@@ -816,7 +837,7 @@ export default function ShortlistScreen() {
                             }
                             onPress={() =>
                               handleViewingPress(
-                                property.id,
+                                property,
                               )
                             }
                             activeOpacity={0.85}
@@ -826,7 +847,11 @@ export default function ShortlistScreen() {
                                 styles.viewingButtonText
                               }
                             >
-                              See it before you decide
+                              {property.purpose === 'SHORT_STAY'
+                                ? 'Check Stay'
+                                : property.purpose === 'LONG_STAY'
+                                  ? 'See it before you decide'
+                                  : 'Unavailable'}
                             </Text>
 
                             <ArrowRight

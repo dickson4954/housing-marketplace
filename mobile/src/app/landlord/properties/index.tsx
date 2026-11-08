@@ -36,12 +36,12 @@ type Property = {
   countyRelation?: { name?: string } | null;
   constituency?: { name?: string } | null;
   ward?: { name?: string } | null;
-  images?: Array<{ url: string; isPrimary?: boolean }>;
-  statusHistory?: Array<{
+  images?: { url: string; isPrimary?: boolean }[];
+  statusHistory?: {
     status?: string;
     note?: string | null;
     createdAt?: string;
-  }>;
+  }[];
 };
 
 async function getToken(): Promise<string | null> {

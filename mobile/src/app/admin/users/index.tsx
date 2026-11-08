@@ -37,6 +37,7 @@ import {
 } from 'lucide-react-native';
 
 import { API_BASE_URL } from '@/config/api';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const COLORS = {
   background: '#0B0F10',
@@ -463,7 +464,11 @@ export default function UsersPage() {
   );
 
   useEffect(() => {
-    loadUsers();
+    const timer = setTimeout(() => {
+      void loadUsers();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadUsers]);
 
   const onRefresh = useCallback(
@@ -690,7 +695,7 @@ export default function UsersPage() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       {isDesktop ? (
         <View style={styles.desktopSidebar}>
           <SidebarContent
@@ -1728,7 +1733,7 @@ export default function UsersPage() {
                         styles.modalSectionDescription
                       }
                     >
-                      This changes the customer's
+                      This changes the customer&apos;s
                       account status in the Makazii
                       backend.
                     </Text>
@@ -1993,7 +1998,7 @@ export default function UsersPage() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

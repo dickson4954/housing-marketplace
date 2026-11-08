@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   ArrowRight,
@@ -76,7 +77,8 @@ export default function CustomerForgotPasswordScreen() {
 
   if (success) {
     return (
-      <View style={styles.successScreen}>
+      <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+        <View style={styles.successScreen}>
         <View style={styles.successIcon}>
           <Check
             size={40}
@@ -98,7 +100,7 @@ export default function CustomerForgotPasswordScreen() {
           information you provided, recovery
           instructions will be sent to you.
           {'\n\n'}
-          For security, we don't reveal whether an
+          For security, we don&apos;t reveal whether an
           account exists.
         </Text>
 
@@ -133,13 +135,15 @@ export default function CustomerForgotPasswordScreen() {
             Back to login
           </Text>
         </Pressable>
-      </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+      style={{ flex: 1 }}
       behavior={
         Platform.OS === 'ios'
           ? 'padding'
@@ -193,7 +197,7 @@ export default function CustomerForgotPasswordScreen() {
 
             <Text style={styles.description}>
               Enter the email address or phone number
-              linked to your MAKAZII account and we'll
+              linked to your MAKAZII account and we&apos;ll
               help you regain access.
             </Text>
           </View>
@@ -315,7 +319,8 @@ export default function CustomerForgotPasswordScreen() {
           </View>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -327,6 +332,7 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     flexGrow: 1,
+    paddingTop: 12,
   },
 
   container: {
@@ -334,7 +340,7 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     alignSelf: 'center',
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 0,
     paddingBottom: 40,
   },
 

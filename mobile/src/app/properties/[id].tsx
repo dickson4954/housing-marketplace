@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -172,7 +173,7 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
 
   const [property, setProperty] = useState<BackendProperty | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -259,6 +260,7 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
   const monthlyRent = property.monthlyRent ?? 0;
   const deposit = property.deposit ?? 0;
   const viewingFee = property.viewingFee ?? 0;
+  const inspectionFee = property.inspectionFee ?? 0;
   const serviceCharge = property.serviceCharge ?? 0;
 
   const dayRate = property.dayRate ?? 0;
@@ -329,11 +331,40 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
    * Visits
    */
   const requestViewing = () => {
+    if (isShortStay) {
+      router.push({
+        pathname: '/inspection/[propertyId]',
+        params: { propertyId: property.id },
+      } as any);
+      return;
+    }
+
+    if (isLongStay) {
+      router.push({
+        pathname: '/viewing/[propertyId]',
+        params: { propertyId: property.id },
+      } as any);
+      return;
+    }
+
+    Alert.alert(
+      'Property type unavailable',
+      'We cannot determine the correct action for this property. Please try again later.',
+    );
+  };
+
+  const bookStay = () => {
+    if (!isShortStay) {
+      Alert.alert(
+        'Booking unavailable',
+        'Accommodation booking is only available for short-stay properties.',
+      );
+      return;
+    }
+
     router.push({
-      pathname: '/viewing/[propertyId]',
-      params: {
-        propertyId: property.id,
-      },
+      pathname: '/stay-booking/[propertyId]' as any,
+      params: { propertyId: property.id },
     });
   };
 
@@ -729,18 +760,28 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
               </View>
             )}
 
-            {/* VIEWING FEE */}
-            {viewingFee > 0 && (
+            {/* PURPOSE-SPECIFIC SERVICE FEE */}
+            {isLongStay && viewingFee > 0 ? (
               <View style={styles.serviceChargeRow}>
                 <Text style={styles.serviceChargeLabel}>
                   Viewing fee
                 </Text>
-
                 <Text style={styles.serviceChargeValue}>
                   {formatCurrency(viewingFee)}
                 </Text>
               </View>
-            )}
+            ) : null}
+
+            {isShortStay && inspectionFee > 0 ? (
+              <View style={styles.serviceChargeRow}>
+                <Text style={styles.serviceChargeLabel}>
+                  Inspection fee
+                </Text>
+                <Text style={styles.serviceChargeValue}>
+                  {formatCurrency(inspectionFee)}
+                </Text>
+              </View>
+            ) : null}
 
             {/* VERIFICATION */}
             {property.verified && (
@@ -936,17 +977,17 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
                 <Text
                   style={styles.viewingInfoTitle}
                 >
-                  See it before you decide
+                  {isShortStay
+                    ? 'Inspect before you book'
+                    : 'See it before you decide'}
                 </Text>
 
                 <Text
-                  style={
-                    styles.viewingInfoDescription
-                  }
+                  style={styles.viewingInfoDescription}
                 >
-                  Request a viewing and a Makazii
-                  representative will help arrange your
-                  visit before you commit to the home.
+                  {isShortStay
+                    ? 'Arrange a physical inspection of the accommodation before confirming your stay.'
+                    : 'Request a viewing and a Makazii representative will help arrange your visit before you commit to the home.'}
                 </Text>
               </View>
 
@@ -1002,22 +1043,46 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.viewingButton}
-            onPress={requestViewing}
-            activeOpacity={0.85}
-          >
-            <Text
-              style={styles.viewingButtonText}
+          {isLongStay ? (
+            <TouchableOpacity
+              style={styles.viewingButton}
+              onPress={requestViewing}
+              activeOpacity={0.85}
             >
-              Request a Viewing
-            </Text>
+              <Text style={styles.viewingButtonText}>
+                Request a Viewing
+              </Text>
+              <ChevronRight size={19} color="#0B0F10" />
+            </TouchableOpacity>
+          ) : isShortStay ? (
+            <View style={styles.shortStayActions}>
+              <TouchableOpacity
+                style={[styles.viewingButton, styles.shortStayButton]}
+                onPress={requestViewing}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.viewingButtonText}>
+                  Check Stay
+                </Text>
+                <ChevronRight size={17} color="#0B0F10" />
+              </TouchableOpacity>
 
-            <ChevronRight
-              size={19}
-              color="#0B0F10"
-            />
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.viewingButton, styles.shortStayButton]}
+                onPress={bookStay}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.viewingButtonText}>
+                  Book Stay
+                </Text>
+                <ChevronRight size={17} color="#0B0F10" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.viewingButtonText}>
+              Unavailable
+            </Text>
+          )}
         </View>
       </View>
     </SafeAreaView>
@@ -1702,6 +1767,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '900',
+  },
+
+  shortStayActions: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  shortStayButton: {
+    flex: 1,
+    paddingHorizontal: 6,
   },
 
   viewingButton: {

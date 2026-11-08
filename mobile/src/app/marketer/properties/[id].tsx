@@ -151,6 +151,7 @@ type BackendProperty = {
   monthlyRent?: number | null;
   deposit?: number | null;
   viewingFee?: number | null;
+  inspectionFee?: number | null;
   serviceCharge?: number | null;
 
   dayRate?: number | null;
@@ -217,6 +218,7 @@ type FormState = {
   monthlyRent: string;
   deposit: string;
   viewingFee: string;
+  inspectionFee: string;
   serviceCharge: string;
 
   dayRate: string;
@@ -606,6 +608,11 @@ function buildForm(
         ? String(property.viewingFee)
         : "",
 
+    inspectionFee:
+      property.inspectionFee != null
+        ? String(property.inspectionFee)
+        : "",
+
     serviceCharge:
       property.serviceCharge != null
         ? String(property.serviceCharge)
@@ -772,7 +779,7 @@ export default function MarketerPropertyDetailsScreen() {
   const [counties, setCounties] =
     useState<GeographyItem[]>([]);
 
-  const [constituencies, setConstituencies] =
+  const [, setConstituencies] =
     useState<GeographyItem[]>([]);
 
   const [wards, setWards] =
@@ -1124,7 +1131,11 @@ export default function MarketerPropertyDetailsScreen() {
     ]);
 
   useEffect(() => {
-    loadAll();
+    const timer = setTimeout(() => {
+      void loadAll();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadAll]);
 
   const onRefresh =
@@ -1297,14 +1308,14 @@ export default function MarketerPropertyDetailsScreen() {
         return false;
       }
 
-      const viewingFee =
+      const inspectionFee =
         parseRequiredPositive(
-          form.viewingFee,
+          form.inspectionFee,
         );
 
-      if (!viewingFee) {
+      if (!inspectionFee) {
         setFieldError(
-          "Viewing / inspection fee must be greater than zero.",
+          "Inspection fee must be greater than zero.",
         );
         return false;
       }
@@ -1457,9 +1468,17 @@ export default function MarketerPropertyDetailsScreen() {
           : null,
 
       viewingFee:
+        form.purpose === "LONG_STAY" &&
         form.viewingFee.trim()
           ? parseOptionalNumber(
               form.viewingFee,
+            )
+          : null,
+
+      inspectionFee:
+        form.purpose === "SHORT_STAY"
+          ? parseRequiredPositive(
+              form.inspectionFee,
             )
           : null,
 
@@ -1878,6 +1897,14 @@ export default function MarketerPropertyDetailsScreen() {
           return {
             ...current,
             purpose,
+            viewingFee:
+              purpose === "LONG_STAY"
+                ? current.viewingFee
+                : "",
+            inspectionFee:
+              purpose === "SHORT_STAY"
+                ? current.inspectionFee
+                : "",
             longStayType:
               purpose ===
               "LONG_STAY"
@@ -2683,15 +2710,15 @@ export default function MarketerPropertyDetailsScreen() {
                       }
                     >
                       <Field
-                        label="VIEWING / INSPECTION FEE"
+                        label="INSPECTION FEE"
                         value={
-                          form.viewingFee
+                          form.inspectionFee
                         }
                         onChangeText={(
                           value,
                         ) =>
                           updateForm(
-                            "viewingFee",
+                            "inspectionFee",
                             normalizeMoneyInput(
                               value,
                             ),
@@ -3483,7 +3510,7 @@ export default function MarketerPropertyDetailsScreen() {
                   <DetailRow
                     label="Inspection Fee"
                     value={formatMoney(
-                      property.viewingFee,
+                      property.inspectionFee,
                     )}
                     emphasized
                   />

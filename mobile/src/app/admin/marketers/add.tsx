@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 
@@ -278,13 +279,7 @@ export default function AddMarketerScreen() {
   }, []);
 
   useEffect(() => {
-    if (!selectedCountyId) {
-      setConstituencies([]);
-      setSelectedConstituencyId('');
-      setWards([]);
-      setSelectedWardIds([]);
-      return;
-    }
+    if (!selectedCountyId) return;
 
     let mounted = true;
 
@@ -324,11 +319,7 @@ export default function AddMarketerScreen() {
   }, [selectedCountyId]);
 
   useEffect(() => {
-    if (!selectedConstituencyId) {
-      setWards([]);
-      setSelectedWardIds([]);
-      return;
-    }
+    if (!selectedConstituencyId) return;
 
     let mounted = true;
 
@@ -606,7 +597,7 @@ export default function AddMarketerScreen() {
         : coverage?.wardIds || [];
 
     return (
-      <View style={styles.screen}>
+      <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
         <ScrollView
           contentContainerStyle={
             styles.successContainer
@@ -771,12 +762,12 @@ export default function AddMarketerScreen() {
             </Pressable>
           </View>
         </ScrollView>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
@@ -1589,7 +1580,7 @@ export default function AddMarketerScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

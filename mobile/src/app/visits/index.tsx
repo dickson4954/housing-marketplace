@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Image,
@@ -28,6 +28,7 @@ import {
 
 import { useViewing } from '@/context/ViewingContext';
 import { useFeedback } from '@/context/FeedbackContext';
+import StayBookingsSection from '@/components/StayBookingsSection';
 import type { Property } from '@/types/property';
 
 const COLORS = {
@@ -172,6 +173,7 @@ function getStatusDescription(status: string) {
 }
 
 export default function VisitsScreen() {
+  const [activeSection, setActiveSection] = useState<'STAYS' | 'VISITS'>('STAYS');
   const {
     viewingRequests,
     refreshViewings,
@@ -330,7 +332,7 @@ export default function VisitsScreen() {
             </Text>
 
             <Text style={styles.headerSubtitle}>
-              Track your viewing requests
+              Manage your accommodation bookings and property visits
             </Text>
           </View>
 
@@ -367,17 +369,61 @@ export default function VisitsScreen() {
 
             <View style={styles.introText}>
               <Text style={styles.introTitle}>
-                Your viewing requests
+                Your MAKAZII activity
               </Text>
 
               <Text style={styles.introDescription}>
-                Track your payment, viewing status, appointment
-                and MAKAZII representative from one place.
+                Follow your stay reservations, accommodation payments,
+                home viewing appointments and feedback in one place.
               </Text>
             </View>
           </View>
 
           {/* ============================================================== 
+              STAY BOOKINGS / PROPERTY VISITS SWITCHER
+          ============================================================== */}
+
+          <View style={styles.sectionTabs}>
+            <Pressable
+              onPress={() => setActiveSection('STAYS')}
+              style={[
+                styles.sectionTab,
+                activeSection === 'STAYS' && styles.sectionTabActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sectionTabText,
+                  activeSection === 'STAYS' && styles.sectionTabTextActive,
+                ]}
+              >
+                Stay Bookings
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setActiveSection('VISITS')}
+              style={[
+                styles.sectionTab,
+                activeSection === 'VISITS' && styles.sectionTabActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sectionTabText,
+                  activeSection === 'VISITS' && styles.sectionTabTextActive,
+                ]}
+              >
+                Property Visits
+              </Text>
+            </Pressable>
+          </View>
+
+          {activeSection === 'STAYS' ? (
+            <StayBookingsSection />
+          ) : (
+            <>
+          {/* ==============================================================
               EMPTY STATE
           ============================================================== */}
 
@@ -839,7 +885,7 @@ export default function VisitsScreen() {
                           <View style={styles.refundNotice}>
                             <Text style={styles.refundNoticeText}>
                               Rental payment is subject to
-                              MAKAZII's rental terms if you
+                              MAKAZII&apos;s rental terms if you
                               decide not to proceed after
                               viewing.
                             </Text>
@@ -1296,11 +1342,14 @@ export default function VisitsScreen() {
               })}
             </View>
           )}
+            </>
+          )}
 
-          {/* ============================================================== 
+          {/* ==============================================================
               HOW VIEWINGS WORK
           ============================================================== */}
 
+          {activeSection === 'VISITS' ? (
           <View style={styles.howItWorks}>
             <Text style={styles.howTitle}>
               How viewing works
@@ -1321,7 +1370,7 @@ export default function VisitsScreen() {
                 <Text style={styles.stepText}>
                   Choose a home, select your viewing option,
                   choose your preferred date and time, then
-                  complete the demo M-PESA payment.
+                  complete the M-Pesa payment. MAKAZII verifies it securely with Safaricom.
                 </Text>
               </View>
             </View>
@@ -1388,6 +1437,7 @@ export default function VisitsScreen() {
               </View>
             </View>
           </View>
+          ) : null}
 
           {/* Space for the global floating AppTabs */}
 
@@ -2393,6 +2443,39 @@ const styles = StyleSheet.create({
   /* ------------------------------------------------------------------------
      SPACE FOR GLOBAL APP TABS
   ------------------------------------------------------------------------ */
+
+  sectionTabs: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    padding: 4,
+    gap: 4,
+  },
+
+  sectionTab: {
+    flex: 1,
+    minHeight: 43,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+
+  sectionTabActive: {
+    backgroundColor: COLORS.lime,
+  },
+
+  sectionTabText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  sectionTabTextActive: {
+    color: COLORS.background,
+  },
 
   bottomSpace: {
     height: 95,

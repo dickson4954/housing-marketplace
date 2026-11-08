@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   Check,
@@ -79,7 +80,8 @@ export default function CustomerResetPasswordScreen() {
 
   if (success) {
     return (
-      <View style={styles.successScreen}>
+      <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+        <View style={styles.successScreen}>
         <View style={styles.successIcon}>
           <Check
             size={40}
@@ -93,7 +95,7 @@ export default function CustomerResetPasswordScreen() {
         </Text>
 
         <Text style={styles.successTitle}>
-          You're all set.
+          You&apos;re all set.
         </Text>
 
         <Text style={styles.successText}>
@@ -115,13 +117,15 @@ export default function CustomerResetPasswordScreen() {
             Go to login
           </Text>
         </Pressable>
-      </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+      style={{ flex: 1 }}
       behavior={
         Platform.OS === 'ios'
           ? 'padding'
@@ -344,7 +348,8 @@ export default function CustomerResetPasswordScreen() {
           </View>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -356,6 +361,7 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     flexGrow: 1,
+    paddingTop: 12,
   },
 
   container: {
@@ -363,7 +369,7 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     alignSelf: 'center',
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 0,
     paddingBottom: 40,
   },
 

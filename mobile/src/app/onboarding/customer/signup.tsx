@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
   ArrowLeft,
@@ -202,7 +203,8 @@ export default function CustomerSignupScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
       style={styles.screen}
       behavior={
         Platform.OS === 'ios'
@@ -245,7 +247,7 @@ export default function CustomerSignupScreen() {
           {/* Intro */}
           <View style={styles.intro}>
             <Text style={styles.title}>
-              Let's get you
+              Let&apos;s get you
               {'\n'}
               settled in.
             </Text>
@@ -463,7 +465,7 @@ export default function CustomerSignupScreen() {
             {/* Terms */}
             <Text style={styles.termsText}>
               By creating an account, you agree to
-              MAKAZII's Terms & Conditions and
+              MAKAZII&apos;s Terms & Conditions and
               Privacy Policy.
             </Text>
 
@@ -539,7 +541,8 @@ export default function CustomerSignupScreen() {
           </Text>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -551,6 +554,7 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     flexGrow: 1,
+    paddingTop: 12,
   },
 
   container: {
@@ -559,7 +563,7 @@ const styles = StyleSheet.create({
     maxWidth: 620,
     alignSelf: 'center',
     paddingHorizontal: 22,
-    paddingTop: 18,
+    paddingTop: 0,
     paddingBottom: 30,
   },
 

@@ -107,10 +107,10 @@ type ApiResult<T> = {
   amenities?: T;
 };
 
-const LONG_STAY_TYPES: Array<{
+const LONG_STAY_TYPES: {
   value: LongStayType;
   label: string;
-}> = [
+}[] = [
   { value: "SINGLE_ROOM", label: "Single Room" },
   { value: "BEDSITTER", label: "Bedsitter" },
   { value: "STUDIO", label: "Studio" },
@@ -122,10 +122,10 @@ const LONG_STAY_TYPES: Array<{
   { value: "APARTMENT", label: "Apartment" },
 ];
 
-const SHORT_STAY_TYPES: Array<{
+const SHORT_STAY_TYPES: {
   value: ShortStayType;
   label: string;
-}> = [
+}[] = [
   { value: "BNB", label: "BnB" },
   { value: "LODGE", label: "Lodge" },
   { value: "GUEST_HOUSE", label: "Guest House" },
@@ -139,20 +139,20 @@ const SHORT_STAY_TYPES: Array<{
   { value: "PRIVATE_ROOM", label: "Private Room" },
 ];
 
-const STAY_MODES: Array<{
+const STAY_MODES: {
   value: StayMode;
   label: string;
-}> = [
+}[] = [
   { value: "DAY", label: "Day" },
   { value: "OVERNIGHT", label: "Overnight" },
   { value: "DAY_AND_NIGHT", label: "Day & Night" },
   { value: "FLEXIBLE", label: "Flexible" },
 ];
 
-const FURNISHING_TYPES: Array<{
+const FURNISHING_TYPES: {
   value: FurnishingType;
   label: string;
-}> = [
+}[] = [
   { value: "UNFURNISHED", label: "Unfurnished" },
   { value: "SEMI_FURNISHED", label: "Semi-furnished" },
   { value: "FURNISHED", label: "Furnished" },
@@ -288,6 +288,7 @@ export default function AddMarketerPropertyScreen() {
   const [monthlyRent, setMonthlyRent] = useState("");
   const [deposit, setDeposit] = useState("");
   const [viewingFee, setViewingFee] = useState("");
+  const [inspectionFee, setInspectionFee] = useState("");
   const [serviceCharge, setServiceCharge] = useState("");
 
   const [dayRate, setDayRate] = useState("");
@@ -351,7 +352,10 @@ export default function AddMarketerPropertyScreen() {
   const coverageConstituency =
     coverage?.constituency ?? null;
 
-  const coverageWards = coverage?.wards ?? [];
+  const coverageWards = useMemo(
+    () => coverage?.wards ?? [],
+    [coverage?.wards],
+  );
 
   const selectedWard = useMemo(
     () =>
@@ -524,6 +528,7 @@ export default function AddMarketerPropertyScreen() {
     setOpenDropdown(null);
 
     if (nextPurpose === "LONG_STAY") {
+      setInspectionFee("");
       setDayRate("");
       setNightRate("");
       setDayNightRate("");
@@ -531,6 +536,7 @@ export default function AddMarketerPropertyScreen() {
       setMaxGuests("");
       setRooms("");
     } else {
+      setViewingFee("");
       setMonthlyRent("");
       setDeposit("");
       setServiceCharge("");
@@ -729,15 +735,15 @@ export default function AddMarketerPropertyScreen() {
       return null;
     }
 
-    const parsedViewingFee =
-      parseMoney(viewingFee);
+    const parsedInspectionFee =
+      parseMoney(inspectionFee);
 
     if (
-      !parsedViewingFee ||
-      parsedViewingFee <= 0
+      !parsedInspectionFee ||
+      parsedInspectionFee <= 0
     ) {
       setFieldError(
-        "Viewing / inspection fee must be greater than zero.",
+        "Inspection fee must be greater than zero.",
       );
       return null;
     }
@@ -755,9 +761,10 @@ export default function AddMarketerPropertyScreen() {
       monthlyRent: undefined,
       deposit: undefined,
 
-      viewingFee:
-        parsedViewingFee,
+      inspectionFee:
+        parsedInspectionFee,
 
+      viewingFee: undefined,
       serviceCharge: undefined,
 
       dayRate: parsedDayRate,
@@ -1472,13 +1479,13 @@ export default function AddMarketerPropertyScreen() {
                 />
 
                 <MoneyField
-                  label="Viewing fee"
+                  label="Inspection fee"
                   placeholder="e.g. 500"
-                  value={viewingFee}
+                  value={inspectionFee}
                   onChangeText={(
                     value,
                   ) =>
-                    setViewingFee(
+                    setInspectionFee(
                       formatMoneyInput(
                         value,
                       ),
@@ -1500,9 +1507,9 @@ export default function AddMarketerPropertyScreen() {
                     The required rate depends
                     on the stay mode. Flexible
                     stays need at least one rate.
-                    The viewing fee is charged
-                    when a customer requests an
-                    inspection.
+                    The inspection fee is charged
+                    when a customer requests a
+                    short-stay inspection.
                   </Text>
                 </View>
               </>

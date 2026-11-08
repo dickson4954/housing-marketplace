@@ -11,6 +11,7 @@ import {
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 import { API_BASE_URL } from "@/config/api";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const TOKEN_KEY = "makazii_landlord_token";
 
@@ -51,6 +52,14 @@ const items = [
     icon: "◷",
     tag: "ACTIVITY",
     color: C.blue,
+  },
+  {
+    title: "Stay Bookings",
+    detail: "Manage accommodation reservations, guest arrivals, and departures.",
+    route: "/landlord/stay-bookings",
+    icon: "▣",
+    tag: "ACCOMMODATION",
+    color: C.lime,
   },
   {
     title: "My Concerns",
@@ -203,23 +212,30 @@ export default function LandlordDashboard() {
   }, []);
 
   useEffect(() => {
-    void checkApproval();
+    const timer = setTimeout(() => {
+      void checkApproval();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [checkApproval]);
 
   if (checking) {
     return (
-      <View style={styles.centered}>
+      <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+        <View style={styles.centered}>
         <ActivityIndicator size="large" color={C.lime} />
         <Text style={styles.loadingText}>
           Verifying your landlord approval...
         </Text>
-      </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centered}>
+      <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+        <View style={styles.centered}>
         <View style={styles.errorIcon}>
           <Text style={styles.errorIconText}>!</Text>
         </View>
@@ -243,13 +259,14 @@ export default function LandlordDashboard() {
             View application status
           </Text>
         </Pressable>
-      </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+      <ScrollView
       contentContainerStyle={[
         styles.content,
         { paddingHorizontal: wide ? 30 : 17 },
@@ -374,13 +391,14 @@ export default function LandlordDashboard() {
       <Text style={styles.footerText}>
         MAKAZII · FIND YOUR PLACE
       </Text>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.background },
-  content: { paddingTop: 24, paddingBottom: 42 },
+  content: { paddingTop: 12, paddingBottom: 42 },
   centered: {
     flex: 1,
     backgroundColor: C.background,

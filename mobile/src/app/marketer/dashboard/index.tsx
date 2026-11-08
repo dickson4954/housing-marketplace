@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowRight,
   Building2,
@@ -73,6 +74,22 @@ export default function MarketerDashboardScreen() {
 
   const [isRefreshing, setIsRefreshing] =
     React.useState(false);
+  const [currentTime, setCurrentTime] = React.useState(0);
+
+  // Keep the current time in state so render calculations stay pure.
+  useEffect(() => {
+    const updateCurrentTime = () => {
+      setCurrentTime(Date.now());
+    };
+
+    const initialTimer = setTimeout(updateCurrentTime, 0);
+    const interval = setInterval(updateCurrentTime, 60_000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, []);
 
   /*
    * Restore the marketer profile when this dashboard opens.
@@ -213,7 +230,9 @@ export default function MarketerDashboardScreen() {
    * COMPLETED viewings are intentionally excluded.
    */
   const upcomingViewings = useMemo(() => {
-    const now = Date.now();
+    if (currentTime === 0) {
+      return [];
+    }
 
     return myViewings
       .filter((viewing) => {
@@ -231,7 +250,7 @@ export default function MarketerDashboardScreen() {
         return (
           new Date(
             viewing.scheduledAt
-          ).getTime() > now
+          ).getTime() > currentTime
         );
       })
       .sort(
@@ -244,7 +263,7 @@ export default function MarketerDashboardScreen() {
           ).getTime()
       )
       .slice(0, 3);
-  }, [myViewings]);
+  }, [myViewings, currentTime]);
 
   const formatDate = useCallback(
     (value: string | null) => {
@@ -297,7 +316,8 @@ export default function MarketerDashboardScreen() {
     !currentMarketer
   ) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={styles.loadingContainer}>
         <ActivityIndicator
           size="large"
           color={COLORS.lime}
@@ -306,7 +326,8 @@ export default function MarketerDashboardScreen() {
         <Text style={styles.loadingText}>
           Loading marketer portal...
         </Text>
-      </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -322,7 +343,8 @@ export default function MarketerDashboardScreen() {
     !isAuthenticated
   ) {
     return (
-      <View style={styles.emptyContainer}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={styles.emptyContainer}>
         <View style={styles.emptyIcon}>
           <UserRound
             size={28}
@@ -357,12 +379,13 @@ export default function MarketerDashboardScreen() {
             strokeWidth={2.2}
           />
         </Pressable>
-      </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
@@ -1137,7 +1160,7 @@ export default function MarketerDashboardScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1323,7 +1346,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 18,
-    paddingTop: 22,
+    paddingTop: 12,
     paddingBottom: 50,
   },
 

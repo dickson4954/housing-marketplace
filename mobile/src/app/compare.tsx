@@ -320,7 +320,11 @@ export default function CompareScreen() {
   }, []);
 
   useEffect(() => {
-    void loadProperties();
+    const timer = setTimeout(() => {
+      void loadProperties();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadProperties]);
 
   const selectedProperties = useMemo(() => {

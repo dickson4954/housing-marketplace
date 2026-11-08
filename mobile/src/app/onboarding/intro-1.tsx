@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import {
   Dimensions,
-  ImageBackground,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,13 +15,14 @@ const { width, height } = Dimensions.get('window');
 export default function IntroOne() {
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={{
+      <View style={styles.background}>
+        <Image
+          source={{
           uri: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=90',
         }}
-        style={styles.background}
-        resizeMode="cover"
-      >
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         <View style={styles.overlay} />
 
         <SafeAreaView style={styles.safeArea}>
@@ -87,7 +88,7 @@ export default function IntroOne() {
             </Pressable>
           </View>
         </SafeAreaView>
-      </ImageBackground>
+      </View>
     </View>
   );
 }

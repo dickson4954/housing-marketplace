@@ -144,8 +144,49 @@ export default function LandlordApplicationDetailScreen() {
   }, [landlordId]);
 
   useEffect(() => {
-    void loadLandlord();
-  }, [loadLandlord]);
+    let active = true;
+
+    async function loadInitialLandlord() {
+      if (!landlordId) {
+        setError('Missing landlord application ID.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const result = await apiRequest(
+          `/admin/landlords/${encodeURIComponent(landlordId)}`,
+        );
+
+        if (active) {
+          setLandlord(
+            result.landlord ??
+            result.data?.landlord ??
+            result.data ??
+            null,
+          );
+        }
+      } catch (e) {
+        if (active) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : 'Unable to load landlord application.',
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadInitialLandlord();
+
+    return () => {
+      active = false;
+    };
+  }, [landlordId]);
 
   const performAction = async (kind: ActionKind) => {
     if (!landlord || busy) return;

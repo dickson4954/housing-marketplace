@@ -437,11 +437,11 @@ export default function MarketersPage() {
   const getProfileChangeFields = (
     request: MarketerProfileChangeRequest,
   ) => {
-    const fields: Array<{
+    const fields: {
       label: string;
       current: string;
       requested: string;
-    }> = [];
+    }[] = [];
 
     if (
       request.requestedFirstName !== null &&
@@ -720,10 +720,45 @@ export default function MarketersPage() {
   );
 
   useEffect(() => {
-    if (mainTab === 'profileChanges') {
-      loadProfileChangeRequests();
+    if (mainTab !== 'profileChanges') {
+      return;
     }
-  }, [mainTab]);
+
+    let active = true;
+
+    void Promise.resolve().then(async () => {
+      if (!active) {
+        return;
+      }
+
+      setProfileChangeLoading(true);
+      setProfileChangeError('');
+
+      try {
+        const requests = await getAllProfileChangeRequests();
+
+        if (active) {
+          setProfileChangeRequests(requests);
+        }
+      } catch (error) {
+        if (active) {
+          setProfileChangeError(
+            error instanceof Error
+              ? error.message
+              : 'Unable to load marketer profile change requests.',
+          );
+        }
+      } finally {
+        if (active) {
+          setProfileChangeLoading(false);
+        }
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [mainTab, getAllProfileChangeRequests]);
 
   const filteredApplications = useMemo(() => {
     const query =
@@ -4802,6 +4837,124 @@ export default function MarketersPage() {
           </View>
         </View>
       </Modal>
+
+      {/* =================================================
+          PROFILE CHANGE REJECTION MODAL
+         ================================================= */}
+
+      <Modal
+        visible={
+          profileChangeVisible &&
+          rejectProfileChangeVisible
+        }
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setRejectProfileChangeVisible(false);
+          setProfileChangeVisible(false);
+          setSelectedProfileChangeRequest(null);
+          setProfileChangeRejectNotes('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.profileChangeModal,
+              width < 700 && styles.profileChangeModalMobile,
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalEyebrow}>
+                  PROFILE CHANGE REQUEST
+                </Text>
+
+                <Text style={styles.modalTitle}>
+                  Reject requested changes
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.modalClose}
+                onPress={() => {
+                  setRejectProfileChangeVisible(false);
+                  setProfileChangeVisible(false);
+                  setSelectedProfileChangeRequest(null);
+                  setProfileChangeRejectNotes('');
+                }}
+              >
+                <X size={18} color={COLORS.muted} />
+              </Pressable>
+            </View>
+
+            <View style={{ padding: 16 }}>
+              <Text style={styles.sectionSubtitle}>
+                Rejecting this request will leave the marketer&apos;s
+                existing profile unchanged. Provide a clear reason
+                for the decision.
+              </Text>
+
+              <View style={styles.rejectionForm}>
+                <Text style={styles.rejectionFormLabel}>
+                  ADMIN REJECTION REASON *
+                </Text>
+
+                <TextInput
+                  value={profileChangeRejectNotes}
+                  onChangeText={setProfileChangeRejectNotes}
+                  placeholder="Explain why these requested changes are being rejected..."
+                  placeholderTextColor={COLORS.mutedDark}
+                  multiline
+                  textAlignVertical="top"
+                  editable={!profileChangeLoading}
+                  style={styles.rejectionFormInput}
+                />
+              </View>
+
+              {profileChangeError ? (
+                <Text style={{ color: COLORS.red, marginTop: 10 }}>
+                  {profileChangeError}
+                </Text>
+              ) : null}
+            </View>
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.secondaryButton}
+                disabled={profileChangeLoading}
+                onPress={() => {
+                  setRejectProfileChangeVisible(false);
+                  setProfileChangeVisible(false);
+                  setSelectedProfileChangeRequest(null);
+                  setProfileChangeRejectNotes('');
+                  setProfileChangeError('');
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  Cancel
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.rejectChangeButton,
+                  profileChangeLoading && { opacity: 0.5 },
+                ]}
+                disabled={profileChangeLoading}
+                onPress={handleRejectProfileChange}
+              >
+                <XCircle size={15} color={COLORS.red} />
+
+                <Text style={styles.rejectChangeButtonText}>
+                  {profileChangeLoading
+                    ? 'Submitting...'
+                    : 'Confirm rejection'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -5282,7 +5435,7 @@ const styles = StyleSheet.create({
 
   pageContent: {
     paddingHorizontal: 22,
-    paddingTop: 24,
+    paddingTop: 0,
     paddingBottom: 50,
   },
 

@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
   ArrowLeft,
@@ -230,16 +231,16 @@ export default function AdminProfileScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingScreen}>
+      <SafeAreaView style={styles.loadingScreen} edges={["top", "left", "right"]}>
         <ActivityIndicator size="large" color={COLORS.lime} />
         <Text style={styles.loadingText}>Loading administrator profile...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (!currentAdmin) {
     return (
-      <View style={styles.loadingScreen}>
+      <SafeAreaView style={styles.loadingScreen} edges={["top", "left", "right"]}>
         <ShieldCheck size={42} color={COLORS.lime} />
         <Text style={styles.emptyTitle}>Administrator session required</Text>
         <Text style={styles.emptyText}>
@@ -252,12 +253,12 @@ export default function AdminProfileScreen() {
         >
           <Text style={styles.primaryButtonText}>Go to admin login</Text>
         </Pressable>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -556,7 +557,7 @@ export default function AdminProfileScreen() {
           <View style={styles.bottomSpace} />
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 

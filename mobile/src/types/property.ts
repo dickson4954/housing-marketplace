@@ -90,6 +90,7 @@ export interface Property {
    */
   monthlyRent?: number;
 viewingFee?: number;
+inspectionFee?: number;
 
   /* Short-stay / BNB pricing */
   dayRate?: number;

@@ -38,6 +38,7 @@ import {
 import * as SecureStore from 'expo-secure-store';
 
 import { API_BASE_URL } from '@/config/api';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const COLORS = {
   background: '#0B0F10',
@@ -155,10 +156,10 @@ type BackendApplication = Omit<
       id?: string;
       name?: string;
     } | null;
-    wards?: Array<{
+    wards?: {
       id?: string;
       name?: string;
-    }>;
+    }[];
   } | null;
 };
 
@@ -215,10 +216,10 @@ function normalizeApplication(
   };
 }
 
-const STATUS_FILTERS: Array<{
+const STATUS_FILTERS: {
   key: 'ALL' | ApplicationStatus;
   label: string;
-}> = [
+}[] = [
   { key: 'ALL', label: 'All' },
   { key: 'PENDING', label: 'Pending' },
   { key: 'UNDER_REVIEW', label: 'Under review' },
@@ -417,32 +418,6 @@ async function adminFetch(
   }
 
   return result;
-}
-
-async function fetchPrivateDocument(
-  side: IdDocumentSide,
-) {
-  const token = await getAdminToken();
-
-  const response = await fetch(
-    `${API_BASE_URL}/marketer-applications/admin/document-placeholder`,
-  );
-
-  void response;
-
-  const documentUrl =
-    `${API_BASE_URL}/marketer-applications/admin`;
-
-  void documentUrl;
-
-  const basePath =
-    `${API_BASE_URL}/marketer-applications/admin`;
-
-  void basePath;
-
-  throw new Error(
-    `Private ${side} document endpoint must be resolved using the application ID.`,
-  );
 }
 
 function DetailRow({
@@ -723,8 +698,64 @@ export default function AdminMarketerApplications() {
     );
 
   useEffect(() => {
-    void loadApplications();
-  }, [loadApplications]);
+    let active = true;
+
+    const fetchInitialApplications = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const query =
+          statusFilter === 'ALL'
+            ? ''
+            : `?status=${encodeURIComponent(statusFilter)}`;
+
+        const result = (await adminFetch(
+          `/marketer-applications/admin${query}`,
+        )) as ListResponse;
+
+        if (result.success === false) {
+          throw new Error(
+            result.message || 'Failed to load marketer applications.',
+          );
+        }
+
+        if (!active) return;
+
+        setApplications(
+          Array.isArray(result.data)
+            ? result.data.map(normalizeApplication)
+            : [],
+        );
+      } catch (requestError) {
+        if (!active) return;
+
+        const message =
+          requestError instanceof Error
+            ? requestError.message
+            : 'Failed to load marketer applications.';
+
+        setError(message);
+
+        if (message.toLowerCase().includes('session')) {
+          Alert.alert('Admin session', message, [
+            {
+              text: 'Sign in',
+              onPress: () => router.replace('/admin/login' as any),
+            },
+          ]);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void fetchInitialApplications();
+
+    return () => {
+      active = false;
+    };
+  }, [statusFilter]);
 
   const filteredApplications =
     useMemo(() => {
@@ -1924,7 +1955,7 @@ export default function AdminMarketerApplications() {
                       styles.identityDocumentSubtitle
                     }
                   >
-                    Applicant's ID front
+                    Applicant&apos;s ID front
                   </Text>
                 </View>
               </View>
@@ -2018,7 +2049,7 @@ export default function AdminMarketerApplications() {
                       styles.identityDocumentSubtitle
                     }
                   >
-                    Applicant's ID back
+                    Applicant&apos;s ID back
                   </Text>
                 </View>
               </View>
@@ -2242,7 +2273,7 @@ export default function AdminMarketerApplications() {
                     styles.verifiedText
                   }
                 >
-                  The applicant's identity documents have
+                  The applicant&apos;s identity documents have
                   been verified. The application may now
                   proceed to approval if all other
                   requirements are satisfactory.
@@ -2644,7 +2675,7 @@ export default function AdminMarketerApplications() {
                   styles.approvalWarningText
                 }
               >
-                Review the applicant's front and back
+                Review the applicant&apos;s front and back
                 identity documents and verify the ID
                 before this application can be approved.
               </Text>
@@ -3046,7 +3077,7 @@ export default function AdminMarketerApplications() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       {!isDesktop &&
       sidebarOpen ? (
         <Pressable
@@ -3701,7 +3732,7 @@ export default function AdminMarketerApplications() {
       ) : null}
 
       {documentError ? null : null}
-    </View>
+    </SafeAreaView>
   );
 }
 

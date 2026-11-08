@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import {
@@ -142,6 +143,7 @@ type BackendProperty = {
   monthlyRent?: number | null;
   deposit?: number | null;
   viewingFee?: number | null;
+  inspectionFee?: number | null;
   serviceCharge?: number | null;
 
   dayRate?: number | null;
@@ -174,11 +176,11 @@ type BackendProperty = {
 
   images?: BackendImage[];
 
-  amenities?: Array<{
+  amenities?: {
     propertyId?: string;
     amenityId?: string;
     amenity: Amenity;
-  }>;
+  }[];
 
   countyRelation?: GeographyItem | null;
   constituency?: GeographyItem | null;
@@ -189,7 +191,7 @@ type BackendProperty = {
   createdAt: string;
   updatedAt: string;
 
-  statusHistory?: Array<{
+  statusHistory?: {
     id: string;
     fromStatus?: PropertyStatus | null;
     toStatus: PropertyStatus;
@@ -200,7 +202,7 @@ type BackendProperty = {
       email?: string | null;
       phone?: string | null;
     } | null;
-  }>;
+  }[];
 
   _count?: {
     viewingRequests?: number;
@@ -208,10 +210,10 @@ type BackendProperty = {
   };
 };
 
-const PURPOSE_OPTIONS: Array<{
+const PURPOSE_OPTIONS: {
   id: Purpose;
   name: string;
-}> = [
+}[] = [
   {
     id: 'LONG_STAY',
     name: 'Long Stay',
@@ -222,10 +224,10 @@ const PURPOSE_OPTIONS: Array<{
   },
 ];
 
-const LONG_STAY_OPTIONS: Array<{
+const LONG_STAY_OPTIONS: {
   id: LongStayType;
   name: string;
-}> = [
+}[] = [
   {
     id: 'SINGLE_ROOM',
     name: 'Single Room',
@@ -264,10 +266,10 @@ const LONG_STAY_OPTIONS: Array<{
   },
 ];
 
-const SHORT_STAY_OPTIONS: Array<{
+const SHORT_STAY_OPTIONS: {
   id: ShortStayType;
   name: string;
-}> = [
+}[] = [
   {
     id: 'BNB',
     name: 'B&B',
@@ -314,10 +316,10 @@ const SHORT_STAY_OPTIONS: Array<{
   },
 ];
 
-const STAY_MODE_OPTIONS: Array<{
+const STAY_MODE_OPTIONS: {
   id: StayMode;
   name: string;
-}> = [
+}[] = [
   {
     id: 'DAY',
     name: 'Day',
@@ -336,10 +338,10 @@ const STAY_MODE_OPTIONS: Array<{
   },
 ];
 
-const FURNISHING_OPTIONS: Array<{
+const FURNISHING_OPTIONS: {
   id: FurnishingType;
   name: string;
-}> = [
+}[] = [
   {
     id: 'UNFURNISHED',
     name: 'Unfurnished',
@@ -638,6 +640,8 @@ export default function AdminPropertyDetailsScreen() {
     useState('');
   const [viewingFee, setViewingFee] =
     useState('');
+  const [inspectionFee, setInspectionFee] =
+    useState('');
   const [serviceCharge, setServiceCharge] =
     useState('');
 
@@ -804,7 +808,7 @@ export default function AdminPropertyDetailsScreen() {
     property !== null &&
     property.status !== 'RENTED';
 
-  const loadProperty = async (
+  const loadProperty = useCallback(async (
     showLoader = true,
   ) => {
     if (!propertyId) {
@@ -876,6 +880,13 @@ export default function AdminPropertyDetailsScreen() {
         data.viewingFee !== null &&
           data.viewingFee !== undefined
           ? String(data.viewingFee)
+          : '',
+      );
+
+      setInspectionFee(
+        data.inspectionFee !== null &&
+          data.inspectionFee !== undefined
+          ? String(data.inspectionFee)
           : '',
       );
 
@@ -972,9 +983,9 @@ export default function AdminPropertyDetailsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+    }, [propertyId]);
 
-  const loadCounties = async () => {
+  const loadCounties = useCallback(async () => {
     try {
       const result = await apiRequest(
         API_ENDPOINTS.geographyCounties,
@@ -989,9 +1000,9 @@ export default function AdminPropertyDetailsScreen() {
         requestError,
       );
     }
-  };
+    }, []);
 
-  const loadConstituencies = async (
+  const loadConstituencies = useCallback(async (
     selectedId: string,
   ) => {
     if (!selectedId) {
@@ -1016,9 +1027,9 @@ export default function AdminPropertyDetailsScreen() {
       );
       setConstituencies([]);
     }
-  };
+    }, []);
 
-  const loadWards = async (
+  const loadWards = useCallback(async (
     selectedId: string,
   ) => {
     if (!selectedId) {
@@ -1043,9 +1054,9 @@ export default function AdminPropertyDetailsScreen() {
       );
       setWards([]);
     }
-  };
+    }, []);
 
-  const loadAmenities = async () => {
+  const loadAmenities = useCallback(async () => {
     try {
       const result = await apiRequest(
         '/admin/amenities',
@@ -1061,9 +1072,9 @@ export default function AdminPropertyDetailsScreen() {
       );
       setAmenities([]);
     }
-  };
+    }, []);
 
-  const loadMarketers = async () => {
+  const loadMarketers = useCallback(async () => {
     try {
       const result = await apiRequest(
         '/admin/marketers',
@@ -1085,26 +1096,38 @@ export default function AdminPropertyDetailsScreen() {
       );
       setMarketers([]);
     }
-  };
+    }, []);
 
   useEffect(() => {
-    loadProperty();
-    loadCounties();
-    loadAmenities();
-    loadMarketers();
-  }, [propertyId]);
+    const timer = setTimeout(() => {
+      loadProperty();
+      loadCounties();
+      loadAmenities();
+      loadMarketers();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [propertyId, loadProperty, loadCounties, loadAmenities, loadMarketers]);
 
   useEffect(() => {
-    if (countyId) {
+    if (!countyId) return;
+
+    const timer = setTimeout(() => {
       loadConstituencies(countyId);
-    }
-  }, [countyId]);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [countyId, loadConstituencies]);
 
   useEffect(() => {
-    if (constituencyId) {
+    if (!constituencyId) return;
+
+    const timer = setTimeout(() => {
       loadWards(constituencyId);
-    }
-  }, [constituencyId]);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [constituencyId, loadWards]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -1202,6 +1225,20 @@ export default function AdminPropertyDetailsScreen() {
         Alert.alert(
           'Missing stay mode',
           'Select how the short-stay property is charged.',
+        );
+        return false;
+      }
+
+      const inspectionFeeValue =
+        numberOrNull(inspectionFee);
+
+      if (
+        inspectionFeeValue === null ||
+        inspectionFeeValue <= 0
+      ) {
+        Alert.alert(
+          'Invalid inspection fee',
+          'Inspection fee must be greater than zero.',
         );
         return false;
       }
@@ -1417,6 +1454,11 @@ export default function AdminPropertyDetailsScreen() {
             ? numberOrUndefined(
                 viewingFee,
               )
+            : undefined,
+
+        inspectionFee:
+          purpose === 'SHORT_STAY'
+            ? numberOrUndefined(inspectionFee)
             : undefined,
 
         serviceCharge:
@@ -1758,6 +1800,7 @@ export default function AdminPropertyDetailsScreen() {
       setBeds('');
       setMaxGuests('');
       setRooms('');
+      setInspectionFee('');
     } else {
       setLongStayType('');
       setMonthlyRent('');
@@ -1955,7 +1998,7 @@ export default function AdminPropertyDetailsScreen() {
         );
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <View style={styles.topBar}>
         <Pressable
           style={styles.backButton}
@@ -2104,9 +2147,15 @@ export default function AdminPropertyDetailsScreen() {
             />
 
             <MiniStat
-              label="VIEWING FEE"
+              label={
+                property.purpose === 'SHORT_STAY'
+                  ? 'INSPECTION FEE'
+                  : 'VIEWING FEE'
+              }
               value={formatMoney(
-                property.viewingFee,
+                property.purpose === 'SHORT_STAY'
+                  ? property.inspectionFee
+                  : property.viewingFee,
               )}
             />
 
@@ -2565,6 +2614,15 @@ export default function AdminPropertyDetailsScreen() {
             </>
           ) : (
             <>
+              <Field
+                label="Inspection fee"
+                value={inspectionFee}
+                onChangeText={setInspectionFee}
+                placeholder="500"
+                keyboardType="numeric"
+                editable={canEdit}
+              />
+
               {stayMode ===
               'DAY' ? (
                 <Field
@@ -3896,12 +3954,11 @@ export default function AdminPropertyDetailsScreen() {
         }
         transparent
         animationType="slide"
-        onRequestClose={() =>
-          !reviewing &&
-          setReviewAction(
-            null,
-          )
-        }
+        onRequestClose={() => {
+          if (!reviewing) {
+            setReviewAction(null);
+          }
+        }}
       >
         <View
           style={
@@ -4086,7 +4143,7 @@ export default function AdminPropertyDetailsScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -4337,10 +4394,10 @@ function PickerModal({
 }: {
   visible: boolean;
   title: string;
-  options: Array<{
+  options: {
     id: string;
     name: string;
-  }>;
+  }[];
   selectedId: string;
   onSelect: (item: {
     id: string;

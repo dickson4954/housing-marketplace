@@ -87,22 +87,22 @@ export type AuthenticatedMarketer = {
       name: string;
       countyId: string;
     } | null;
-    wards: Array<{
+    wards: {
       id: string;
       sourceId: string;
       name: string;
       constituencyId: string;
-    }>;
+    }[];
     assignedAt: string;
     updatedAt: string;
   } | null;
 
-  places: Array<{
+  places: {
     id: string;
     name: string;
     countyId: string;
     assignedAt: string;
-  }>;
+  }[];
 
   statistics: {
     properties: {
@@ -181,24 +181,24 @@ export type MarketerProperty = {
     name: string;
     constituencyId: string;
   } | null;
-  images?: Array<{
+  images?: {
     id: string;
     url: string;
     createdAt?: string;
-  }>;
-  amenities?: Array<{
+  }[];
+  amenities?: {
     id: string;
     amenity?: {
       id: string;
       name: string;
     } | null;
-  }>;
-  statusHistory?: Array<{
+  }[];
+  statusHistory?: {
     id: string;
     status: string;
     note?: string | null;
     createdAt: string;
-  }>;
+  }[];
   _count?: {
     viewingRequests?: number;
     shortlists?: number;
@@ -282,19 +282,19 @@ export type MarketerViewing = {
       name: string;
       constituencyId: string;
     } | null;
-    images?: Array<{
+    images?: {
       id: string;
       url: string;
       createdAt?: string;
-    }>;
+    }[];
   } | null;
 
-  statusHistory?: Array<{
+  statusHistory?: {
     id: string;
     status: string;
     note?: string | null;
     createdAt: string;
-  }>;
+  }[];
 };
 
 /* =========================================================
@@ -969,42 +969,6 @@ function getNextMarketerId(
     );
 
   return `MK-${String(
-    highestNumber + 1
-  ).padStart(3, '0')}`;
-}
-
-function getNextApplicationId(
-  applications: MarketerApplication[]
-): string {
-  const highestNumber =
-    applications.reduce(
-      (highest, application) => {
-        const match =
-          application.id.match(
-            /^APP-(\d+)$/
-          );
-
-        if (!match) {
-          return highest;
-        }
-
-        const number = Number(
-          match[1]
-        );
-
-        if (!Number.isFinite(number)) {
-          return highest;
-        }
-
-        return Math.max(
-          highest,
-          number
-        );
-      },
-      0
-    );
-
-  return `APP-${String(
     highestNumber + 1
   ).padStart(3, '0')}`;
 }
@@ -2456,6 +2420,35 @@ export function MarketerProvider({
     );
 
   /* =======================================================
+     ADMIN TOKEN HELPER
+     ======================================================= */
+
+  const getAdminToken = useCallback(
+    async (): Promise<string | null> => {
+      if (Platform.OS === 'web') {
+        try {
+          return (
+            window.localStorage.getItem(
+              'makazii_admin_token'
+            ) ?? null
+          );
+        } catch {
+          return null;
+        }
+      }
+
+      try {
+        return await SecureStore.getItemAsync(
+          'makazii_admin_token'
+        );
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
+  /* =======================================================
      ADMIN MARKETER MANAGEMENT
      ======================================================= */
 
@@ -2543,7 +2536,7 @@ export function MarketerProvider({
             )
         );
       },
-      []
+      [getAdminToken]
     );
 
   /* =======================================================
@@ -2760,7 +2753,7 @@ export function MarketerProvider({
 
         setApplications(loadedApplications);
       },
-      []
+      [getAdminToken]
     );
 
   /* =======================================================
@@ -3289,30 +3282,6 @@ export function MarketerProvider({
      ADMIN PROFILE CHANGE REQUEST HELPERS
      ======================================================= */
 
-  const getAdminToken = useCallback(
-    async (): Promise<string | null> => {
-      if (Platform.OS === 'web') {
-        try {
-          return (
-            window.localStorage.getItem(
-              'makazii_admin_token'
-            ) ?? null
-          );
-        } catch {
-          return null;
-        }
-      }
-
-      try {
-        return await SecureStore.getItemAsync(
-          'makazii_admin_token'
-        );
-      } catch {
-        return null;
-      }
-    },
-    []
-  );
 
   /* =======================================================
      MARKETER PROFILE CHANGE REQUESTS
@@ -3954,6 +3923,7 @@ export function MarketerProvider({
         await refreshAdminMarketers();
       },
       [
+        getAdminToken,
         refreshAdminMarketers,
       ]
     );
@@ -4019,6 +3989,7 @@ export function MarketerProvider({
         await refreshAdminMarketers();
       },
       [
+        getAdminToken,
         refreshAdminMarketers,
       ]
     );
@@ -4026,14 +3997,14 @@ export function MarketerProvider({
   const activateMarketer =
     approveMarketer;
 
-  const getMarketerById = (
+  const getMarketerById = useCallback((
     id: string
   ): Marketer | undefined => {
     return marketers.find(
       (marketer) =>
         marketer.id === id
     );
-  };
+  }, [marketers]);
 
   /* =======================================================
      SUBMIT APPLICATION
@@ -4404,7 +4375,7 @@ export function MarketerProvider({
     return newApplication;
   };
 
-  const updateApplicantMarketerApplication = async (
+  const updateApplicantMarketerApplication = useCallback(async (
     input: CreateMarketerApplicationInput
   ): Promise<MarketerApplication> => {
     const token = await getMarketerApplicationAccessToken();
@@ -4720,7 +4691,7 @@ export function MarketerProvider({
     );
 
     return newApplication;
-  };
+  }, []);
 
 
   /* =======================================================
@@ -4882,16 +4853,16 @@ export function MarketerProvider({
      APPLICATION HELPERS
      ======================================================= */
 
-  const getApplicationById = (
+  const getApplicationById = useCallback((
     id: string
   ): MarketerApplication | undefined => {
     return applications.find(
       (application) =>
         application.id === id
     );
-  };
+  }, [applications]);
 
-  const getApplicationsByStatus = (
+  const getApplicationsByStatus = useCallback((
     status: MarketerApplicationStatus
   ): MarketerApplication[] => {
     return applications.filter(
@@ -4899,9 +4870,9 @@ export function MarketerProvider({
         application.status ===
         status
     );
-  };
+  }, [applications]);
 
-  const getApplicationByEmail = (
+  const getApplicationByEmail = useCallback((
     email: string
   ): MarketerApplication | undefined => {
     const normalizedEmail =
@@ -4940,7 +4911,7 @@ export function MarketerProvider({
           ? application
           : latest
     );
-  };
+  }, [applications]);
 
   const updateApplication = (
     id: string,
@@ -5006,7 +4977,7 @@ export function MarketerProvider({
     );
   };
 
-  const approveApplication = (
+  const approveApplication = useCallback((
     id: string
   ): Marketer | undefined => {
     const application =
@@ -5135,7 +5106,7 @@ export function MarketerProvider({
     );
 
     return newMarketer;
-  };
+  }, [applications, marketers]);
 
   const rejectApplication = (
     id: string,
@@ -5334,6 +5305,15 @@ export function MarketerProvider({
         rejectProfileChangeRequest,
         logout,
         refreshAdminMarketers,
+        activateMarketer,
+        approveApplication,
+        approveMarketer,
+        getApplicationByEmail,
+        getApplicationById,
+        getApplicationsByStatus,
+        getMarketerById,
+        suspendMarketer,
+        updateMarketer,
       ]
     );
 

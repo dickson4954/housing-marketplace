@@ -34,7 +34,6 @@ import {
   UserRound,
   Users,
   X,
-  XCircle,
 } from "lucide-react-native";
 
 import { API_BASE_URL } from "../../../config/api";
@@ -103,6 +102,7 @@ type Property = {
   monthlyRent?: number | null;
   deposit?: number | null;
   viewingFee?: number | null;
+  inspectionFee?: number | null;
   serviceCharge?: number | null;
 
   dayRate?: number | null;
@@ -290,24 +290,6 @@ function formatMoney(value?: number | null): string {
   return `KES ${value.toLocaleString("en-KE")}`;
 }
 
-function formatDate(value?: string | null): string {
-  if (!value) {
-    return "—";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  return date.toLocaleDateString("en-KE", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 function formatRelativeDate(value?: string | null): string {
   if (!value) return "";
 
@@ -352,19 +334,6 @@ function getPersonName(person?: PropertyPerson | null): string {
     .trim();
 
   return name || "Makazii team";
-}
-
-function getPersonRole(person?: PropertyPerson | null): string {
-  switch ((person?.role || "").toUpperCase()) {
-    case "ADMIN":
-      return "Administrator";
-    case "LANDLORD":
-      return "Landlord";
-    case "MARKETER":
-      return "Marketer";
-    default:
-      return "Property team";
-  }
 }
 
 function getStatusLabel(status: string): string {
@@ -492,23 +461,6 @@ function getLocation(property: Property): string {
   return [property.area, property.town, property.county]
     .filter(Boolean)
     .join(", ");
-}
-
-function getInitials(name: string): string {
-  const parts = name
-    .split(" ")
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (parts.length === 0) {
-    return "MK";
-  }
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
 function Sidebar({
@@ -868,7 +820,6 @@ function PropertyCard({
   const imageUrl = getImageUrl(property.images?.[0]);
   const price = getPrimaryPrice(property);
   const purpose = getPurposeLabel(property);
-  const marketerName = getMarketerName(property.marketer);
 
   // Always show the person who originally uploaded/submitted the listing.
   const displayPerson = property.createdBy;
@@ -1013,9 +964,17 @@ function PropertyCard({
 
         <View style={styles.secondaryInfoRow}>
           <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>VIEWING FEE</Text>
+            <Text style={styles.infoLabel}>
+              {property.purpose?.toUpperCase() === "SHORT_STAY"
+                ? "INSPECTION FEE"
+                : "VIEWING FEE"}
+            </Text>
             <Text style={styles.infoValue}>
-              {formatMoney(property.viewingFee)}
+              {formatMoney(
+                property.purpose?.toUpperCase() === "SHORT_STAY"
+                  ? property.inspectionFee
+                  : property.viewingFee
+              )}
             </Text>
           </View>
 
@@ -1182,21 +1141,6 @@ export default function AdminPropertiesScreen() {
           );
         }
 
-        console.log(
-          "[MAKAZII uploader check]",
-          (result.data ?? []).slice(0, 5).map((property) => ({
-            propertyId: property.id,
-            createdBy: property.createdBy
-              ? {
-                  id: property.createdBy.id,
-                  firstName: property.createdBy.firstName,
-                  lastName: property.createdBy.lastName,
-                  role: property.createdBy.role,
-                }
-              : null,
-          })),
-        );
-
         setProperties(result.data ?? []);
       } catch (requestError) {
         const message =
@@ -1214,7 +1158,11 @@ export default function AdminPropertiesScreen() {
   );
 
   useEffect(() => {
-    loadProperties();
+    const timer = setTimeout(() => {
+      loadProperties();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadProperties]);
 
   const filteredProperties = useMemo(() => {
@@ -1233,7 +1181,6 @@ export default function AdminPropertiesScreen() {
         return true;
       }
 
-      const marketerName = getMarketerName(property.marketer);
 
       const searchable = [
         property.id,
@@ -1246,7 +1193,7 @@ export default function AdminPropertiesScreen() {
         property.county,
         property.town,
         property.area,
-        marketerName,
+        getMarketerName(property.marketer),
       ]
         .filter(Boolean)
         .join(" ")

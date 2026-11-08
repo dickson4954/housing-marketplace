@@ -548,7 +548,11 @@ export function AdminProvider({
     }, []);
 
   useEffect(() => {
-    void refreshCurrentAdmin();
+    const timer = setTimeout(() => {
+      void refreshCurrentAdmin();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [refreshCurrentAdmin]);
 
   const value = useMemo(

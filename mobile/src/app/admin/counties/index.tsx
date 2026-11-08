@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
   ArrowLeft,
@@ -71,6 +72,36 @@ export default function AdminCountiesScreen() {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [uploadingCountyId, setUploadingCountyId] = useState<string | null>(null);
 
+  const fetchCounties = useCallback(async (): Promise<County[]> => {
+    const token = await getAdminToken();
+    const response = await fetch(`${API_BASE_URL}/admin/counties`, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      throw new Error(json?.message || 'Unable to load counties.');
+    }
+
+    const items = json?.data?.counties;
+
+    if (!Array.isArray(items)) {
+      throw new Error('The server returned an unexpected counties response.');
+    }
+
+    return items.map((item: any) => ({
+      id: String(item.id),
+      name: String(item.name),
+      sourceId: item.sourceId ? String(item.sourceId) : undefined,
+      coverImageUrl:
+        typeof item.coverImageUrl === 'string' ? item.coverImageUrl : null,
+    }));
+  }, []);
+
   const loadCounties = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
@@ -78,46 +109,43 @@ export default function AdminCountiesScreen() {
     setError('');
 
     try {
-      const token = await getAdminToken();
-      const response = await fetch(`${API_BASE_URL}/admin/counties`, {
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const json = await response.json();
-
-      if (!response.ok) {
-        throw new Error(json?.message || 'Unable to load counties.');
-      }
-
-      const items = json?.data?.counties;
-
-      if (!Array.isArray(items)) {
-        throw new Error('The server returned an unexpected counties response.');
-      }
-
-      setCounties(
-        items.map((item: any) => ({
-          id: String(item.id),
-          name: String(item.name),
-          sourceId: item.sourceId ? String(item.sourceId) : undefined,
-          coverImageUrl:
-            typeof item.coverImageUrl === 'string' ? item.coverImageUrl : null,
-        })),
-      );
+      const items = await fetchCounties();
+      setCounties(items);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to load counties.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [fetchCounties]);
 
   useEffect(() => {
-    void loadCounties();
-  }, [loadCounties]);
+    let active = true;
+
+    async function loadInitialCounties() {
+      try {
+        const items = await fetchCounties();
+
+        if (active) {
+          setCounties(items);
+        }
+      } catch (e) {
+        if (active) {
+          setError(e instanceof Error ? e.message : 'Unable to load counties.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadInitialCounties();
+
+    return () => {
+      active = false;
+    };
+  }, [fetchCounties]);
 
   const chooseImage = async (county: County) => {
     try {
@@ -165,7 +193,6 @@ export default function AdminCountiesScreen() {
       const form = new FormData();
       const asset = selectedImage;
       const fileName = asset.fileName || `${county.name.toLowerCase()}-cover.jpg`;
-      const mimeType = asset.mimeType || 'image/jpeg';
 
       if (Platform.OS === 'web') {
         // Browser: append a real Blob to FormData.
@@ -240,7 +267,7 @@ export default function AdminCountiesScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
@@ -392,7 +419,7 @@ export default function AdminCountiesScreen() {
           })}
         </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -400,7 +427,7 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingTop: Platform.OS === 'web' ? 22 : 48,
+    paddingTop: Platform.OS === 'web' ? 22 : 0,
   },
   header: {
     flexDirection: 'row',

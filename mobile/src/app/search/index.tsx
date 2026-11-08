@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -20,6 +20,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
 import { useShortlist } from '@/context/ShortlistContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import type { BackendProperty, BackendPropertyAmenity } from '@/types/backendProperty';
 
 const COLORS = {
   background: '#0B0F10',
@@ -35,7 +37,6 @@ const COLORS = {
 
 type Purpose = 'LONG_STAY' | 'SHORT_STAY';
 
-import type { BackendProperty, BackendPropertyAmenity } from '@/types/backendProperty';
 
 type Property = BackendProperty;
 
@@ -591,9 +592,13 @@ function PropertyCard({
             style={styles.viewingFee}
             numberOfLines={1}
           >
-            {property.viewingFee
-              ? `Viewing ${formatMoney(property.viewingFee)}`
-              : 'Request a viewing'}
+            {isShortStay
+              ? property.inspectionFee != null
+                ? `Inspection ${formatMoney(property.inspectionFee)}`
+                : 'Inspection fee unavailable'
+              : property.viewingFee != null
+                ? `Viewing ${formatMoney(property.viewingFee)}`
+                : 'Request a viewing'}
           </Text>
 
           <Ionicons
@@ -770,9 +775,10 @@ export default function SearchScreen() {
    * -----------------------------
    */
 
-  async function loadProperties(
+  const loadProperties = useCallback(async (
     showSpinner = true,
-  ) {
+  ) => {
+
     try {
       if (showSpinner) {
         setLoading(true);
@@ -816,7 +822,7 @@ export default function SearchScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, []);
 
   /*
    * -----------------------------
@@ -824,7 +830,8 @@ export default function SearchScreen() {
    * -----------------------------
    */
 
-  async function loadCounties() {
+  const loadCounties = useCallback(async () => {
+
     try {
       const response = await fetch(
         `${API_BASE_URL}${API_ENDPOINTS.geographyCounties}`,
@@ -847,11 +854,12 @@ export default function SearchScreen() {
         error,
       );
     }
-  }
+  }, []);
 
-  async function loadConstituencies(
+  const loadConstituencies = useCallback(async (
     countyId: string,
-  ) {
+  ) => {
+
     if (!countyId) {
       setConstituencies([]);
       return;
@@ -887,11 +895,12 @@ export default function SearchScreen() {
     } finally {
       setLoadingGeography(false);
     }
-  }
+  }, []);
 
-  async function loadWards(
+  const loadWards = useCallback(async (
     constituencyId: string,
-  ) {
+  ) => {
+
     if (!constituencyId) {
       setWards([]);
       return;
@@ -927,11 +936,12 @@ export default function SearchScreen() {
     } finally {
       setLoadingGeography(false);
     }
-  }
+  }, []);
 
-  async function loadPlaces(
+  const loadPlaces = useCallback(async (
     countyId: string,
-  ) {
+  ) => {
+
     if (!countyId) {
       setPlaces([]);
       return;
@@ -967,7 +977,7 @@ export default function SearchScreen() {
     } finally {
       setLoadingGeography(false);
     }
-  }
+  }, []);
 
   /*
    * -----------------------------
@@ -976,9 +986,13 @@ export default function SearchScreen() {
    */
 
   useEffect(() => {
-    loadProperties();
-    loadCounties();
-  }, []);
+    const timer = setTimeout(() => {
+      void loadProperties();
+      void loadCounties();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [loadProperties, loadCounties]);
 
   /*
    * -----------------------------
@@ -991,68 +1005,71 @@ export default function SearchScreen() {
       return;
     }
 
-    const incomingPurpose =
-      params.purpose === 'SHORT_STAY'
-        ? 'SHORT_STAY'
-        : 'LONG_STAY';
+    const timer = setTimeout(() => {
+      const incomingPurpose =
+        params.purpose === 'SHORT_STAY'
+          ? 'SHORT_STAY'
+          : 'LONG_STAY';
 
-    const incomingQuery =
-      typeof params.query === 'string'
-        ? params.query
-        : '';
+      const incomingQuery =
+        typeof params.query === 'string'
+          ? params.query
+          : '';
 
-    const incomingCounty =
-      typeof params.county === 'string'
-        ? params.county
-        : '';
+      const incomingCounty =
+        typeof params.county === 'string'
+          ? params.county
+          : '';
 
-    const incomingLongStayType =
-      typeof params.longStayType === 'string'
-        ? params.longStayType
-        : '';
+      const incomingLongStayType =
+        typeof params.longStayType === 'string'
+          ? params.longStayType
+          : '';
 
-    const incomingPropertyType =
-      typeof params.propertyType === 'string'
-        ? params.propertyType
-        : '';
+      const incomingPropertyType =
+        typeof params.propertyType === 'string'
+          ? params.propertyType
+          : '';
 
-    const incomingBedrooms =
-      typeof params.bedrooms === 'string'
-        ? params.bedrooms
-        : '';
+      const incomingBedrooms =
+        typeof params.bedrooms === 'string'
+          ? params.bedrooms
+          : '';
 
-    setSearchText(incomingQuery);
+      setSearchText(incomingQuery);
 
-    const nextFilters: FilterState = {
-      ...EMPTY_FILTERS,
-      purpose: incomingPurpose,
-      propertyType:
-        incomingPropertyType ||
-        incomingLongStayType,
-      bedrooms: incomingBedrooms,
-    };
+      const nextFilters: FilterState = {
+        ...EMPTY_FILTERS,
+        purpose: incomingPurpose,
+        propertyType:
+          incomingPropertyType ||
+          incomingLongStayType,
+        bedrooms: incomingBedrooms,
+      };
 
-    if (incomingCounty) {
-      const matchingCounty =
-        counties.find(
-          (county) =>
-            county.name.toLowerCase() ===
-              incomingCounty.toLowerCase() ||
-            county.id === incomingCounty,
-        );
+      if (incomingCounty) {
+        const matchingCounty =
+          counties.find(
+            (county) =>
+              county.name.toLowerCase() ===
+                incomingCounty.toLowerCase() ||
+              county.id === incomingCounty,
+          );
 
-      if (matchingCounty) {
-        nextFilters.countyId =
-          matchingCounty.id;
-        nextFilters.countyName =
-          matchingCounty.name;
+        if (matchingCounty) {
+          nextFilters.countyId =
+            matchingCounty.id;
+          nextFilters.countyName =
+            matchingCounty.name;
+        }
       }
-    }
 
-    setDraftFilters(nextFilters);
-    setAppliedFilters(nextFilters);
+      setDraftFilters(nextFilters);
+      setAppliedFilters(nextFilters);
+      setInitializedParams(true);
+    }, 0);
 
-    setInitializedParams(true);
+    return () => clearTimeout(timer);
   }, [
     counties,
     initializedParams,
@@ -1070,30 +1087,39 @@ export default function SearchScreen() {
    */
 
   useEffect(() => {
-    if (!draftFilters.countyId) {
-      setConstituencies([]);
-      setPlaces([]);
-      return;
-    }
+    const timer = setTimeout(() => {
+      if (!draftFilters.countyId) {
+        setConstituencies([]);
+        setPlaces([]);
+        return;
+      }
 
-    loadConstituencies(
-      draftFilters.countyId,
-    );
-    loadPlaces(
-      draftFilters.countyId,
-    );
-  }, [draftFilters.countyId]);
+      void loadConstituencies(draftFilters.countyId);
+      void loadPlaces(draftFilters.countyId);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [
+    draftFilters.countyId,
+    loadConstituencies,
+    loadPlaces,
+  ]);
 
   useEffect(() => {
-    if (!draftFilters.constituencyId) {
-      setWards([]);
-      return;
-    }
+    const timer = setTimeout(() => {
+      if (!draftFilters.constituencyId) {
+        setWards([]);
+        return;
+      }
 
-    loadWards(
-      draftFilters.constituencyId,
-    );
-  }, [draftFilters.constituencyId]);
+      void loadWards(draftFilters.constituencyId);
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [
+    draftFilters.constituencyId,
+    loadWards,
+  ]);
 
   /*
    * -----------------------------
@@ -1656,14 +1682,6 @@ export default function SearchScreen() {
     );
   }
 
-  function goToViewing(
-    propertyId: string,
-  ) {
-    router.push(
-      `/viewing/${propertyId}` as any,
-    );
-  }
-
   function isShortlisted(
     propertyId: string,
   ) {
@@ -1984,7 +2002,10 @@ export default function SearchScreen() {
    */
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView
+      style={styles.container}
+      edges={['top', 'left', 'right']}
+    >
       <FlatList
         data={filteredProperties}
         keyExtractor={(item) =>
@@ -3522,7 +3543,7 @@ export default function SearchScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

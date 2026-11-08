@@ -113,19 +113,20 @@ export default function LandlordPropertiesScreen() {
   const [filter, setFilter] = useState<Filter>('ALL');
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+
     if (!landlordId) {
       setError('Missing landlord ID.');
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    setError('');
-
     try {
       const payload = await apiRequest(
         `/admin/landlords/${encodeURIComponent(landlordId)}`,
       );
+
       setLandlord(
         payload?.landlord ??
         payload?.data?.landlord ??
@@ -133,17 +134,65 @@ export default function LandlordPropertiesScreen() {
         null,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to load landlord properties.');
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Unable to load landlord properties.',
+      );
     } finally {
       setLoading(false);
     }
   }, [landlordId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let active = true;
 
-  const properties = landlord?.properties ?? [];
+    async function loadLandlordProperties() {
+      if (!landlordId) {
+        setError('Missing landlord ID.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const payload = await apiRequest(
+          `/admin/landlords/${encodeURIComponent(landlordId)}`,
+        );
+
+        if (active) {
+          setLandlord(
+            payload?.landlord ??
+            payload?.data?.landlord ??
+            payload?.data ??
+            null,
+          );
+        }
+      } catch (e) {
+        if (active) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : 'Unable to load landlord properties.',
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadLandlordProperties();
+
+    return () => {
+      active = false;
+    };
+  }, [landlordId]);
+
+  const properties = useMemo(
+    () => landlord?.properties ?? [],
+    [landlord?.properties],
+  );
 
   const filteredProperties = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();

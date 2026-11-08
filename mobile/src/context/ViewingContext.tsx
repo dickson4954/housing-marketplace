@@ -1221,14 +1221,18 @@ export function ViewingProvider({
   ========================================================================== */
 
   useEffect(() => {
-    void refreshViewings().catch(
-      (error) => {
-        console.error(
-          'Initial viewing load failed:',
-          error,
-        );
-      },
-    );
+    const timer = setTimeout(() => {
+      void refreshViewings().catch(
+        (error) => {
+          console.error(
+            'Initial viewing load failed:',
+            error,
+          );
+        },
+      );
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [refreshViewings]);
 
   /* ==========================================================================

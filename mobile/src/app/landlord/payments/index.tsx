@@ -1,3 +1,4 @@
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -212,7 +213,11 @@ export default function LandlordPayments() {
   }, []);
 
   useEffect(() => {
-    void loadPayments();
+    const timer = setTimeout(() => {
+      void loadPayments();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadPayments]);
 
   const filteredPayments = useMemo(() => {
@@ -240,15 +245,15 @@ export default function LandlordPayments() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
+      <SafeAreaView style={styles.centered} edges={["top", "left", "right"]}>
         <ActivityIndicator size="large" color="#D7FF5F" />
         <Text style={styles.mutedText}>Loading payment records...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -515,13 +520,13 @@ export default function LandlordPayments() {
           </>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#0B0F10" },
-  content: { padding: 22, paddingTop: 24, paddingBottom: 48 },
+  content: { padding: 22, paddingTop: 12, paddingBottom: 48 },
   centered: {
     flex: 1,
     backgroundColor: "#0B0F10",

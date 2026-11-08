@@ -407,6 +407,8 @@ export default function AdminAddPropertyPage() {
   const [deposit, setDeposit] = useState('');
   const [viewingFee, setViewingFee] =
     useState('');
+  const [inspectionFee, setInspectionFee] =
+    useState('');
   const [serviceCharge, setServiceCharge] =
     useState('');
 
@@ -564,47 +566,9 @@ export default function AdminAddPropertyPage() {
     shortStayType,
   ]);
 
-  useEffect(() => {
-    loadInitialData();
-  }, []);
 
-  useEffect(() => {
-    if (purpose === 'LONG_STAY') {
-      setShortStayType(null);
-      setStayMode(null);
-      setDayRate('');
-      setNightRate('');
-      setDayNightRate('');
-      setBeds('');
-      setMaxGuests('');
-      setRooms('');
-    }
 
-    if (purpose === 'SHORT_STAY') {
-      setLongStayType(null);
-      setMonthlyRent('');
-      setDeposit('');
-      setViewingFee('');
-      setServiceCharge('');
-    }
-  }, [purpose]);
 
-  useEffect(() => {
-    if (stayMode === 'DAY') {
-      setNightRate('');
-      setDayNightRate('');
-    }
-
-    if (stayMode === 'OVERNIGHT') {
-      setDayRate('');
-      setDayNightRate('');
-    }
-
-    if (stayMode === 'DAY_AND_NIGHT') {
-      setDayRate('');
-      setNightRate('');
-    }
-  }, [stayMode]);
 
   async function loadInitialData() {
     try {
@@ -707,6 +671,15 @@ export default function AdminAddPropertyPage() {
     }
   }
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadInitialData();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+
   async function loadConstituencies(
     countyId: string,
   ) {
@@ -783,13 +756,51 @@ export default function AdminAddPropertyPage() {
     }
   }
 
-  function handlePurposeChange(
-    value: Purpose,
-  ) {
+  function handlePurposeChange(value: Purpose) {
     setPurpose(value);
     setPurposeOpen(false);
     setPropertyTypeOpen(false);
     setStayModeOpen(false);
+
+    if (value === 'LONG_STAY') {
+      setInspectionFee('');
+      setShortStayType(null);
+      setStayMode(null);
+      setDayRate('');
+      setNightRate('');
+      setDayNightRate('');
+      setBeds('');
+      setMaxGuests('');
+      setRooms('');
+    }
+
+    if (value === 'SHORT_STAY') {
+      setViewingFee('');
+      setLongStayType(null);
+      setMonthlyRent('');
+      setDeposit('');
+      setViewingFee('');
+      setServiceCharge('');
+    }
+  }
+
+  function handleStayModeChange(value: StayMode) {
+    setStayMode(value);
+
+    if (value === 'DAY') {
+      setNightRate('');
+      setDayNightRate('');
+    }
+
+    if (value === 'OVERNIGHT') {
+      setDayRate('');
+      setDayNightRate('');
+    }
+
+    if (value === 'DAY_AND_NIGHT') {
+      setDayRate('');
+      setNightRate('');
+    }
   }
 
   function handleCountyChange(
@@ -943,6 +954,13 @@ export default function AdminAddPropertyPage() {
 
       if (!stayMode) {
         return 'Please select the stay mode.';
+      }
+
+      if (
+        !inspectionFee.trim() ||
+        Number(inspectionFee) <= 0
+      ) {
+        return 'Enter a valid short-stay inspection fee.';
       }
 
       if (
@@ -1211,6 +1229,13 @@ export default function AdminAddPropertyPage() {
               )
             : undefined,
 
+        inspectionFee:
+          purpose === 'SHORT_STAY'
+            ? numberOrUndefined(
+                inspectionFee,
+              )
+            : undefined,
+
         serviceCharge:
           purpose === 'LONG_STAY'
             ? numberOrUndefined(
@@ -1344,6 +1369,7 @@ export default function AdminAddPropertyPage() {
     setMonthlyRent('');
     setDeposit('');
     setViewingFee('');
+    setInspectionFee('');
     setServiceCharge('');
 
     setDayRate('');
@@ -2210,7 +2236,7 @@ export default function AdminAddPropertyPage() {
                         stayModeOpen,
                         setStayModeOpen,
                         STAY_MODE_OPTIONS,
-                        setStayMode,
+                        handleStayModeChange,
                       )}
                     </View>
 
@@ -2417,6 +2443,30 @@ export default function AdminAddPropertyPage() {
                         )}
                       </View>
                     )}
+
+                    <View
+                      style={styles.formGroup}
+                    >
+                      {renderFieldLabel(
+                        'Inspection fee (KSh)',
+                      )}
+
+                      <TextInput
+                        value={inspectionFee}
+                        onChangeText={setInspectionFee}
+                        placeholder="e.g. 500"
+                        placeholderTextColor={
+                          COLORS.mutedDark
+                        }
+                        keyboardType="numeric"
+                        style={styles.input}
+                      />
+
+                      <Text style={styles.helper}>
+                        One-time short-stay inspection charge, separate
+                        from accommodation rates.
+                      </Text>
+                    </View>
 
                     <View
                       style={[
@@ -3309,6 +3359,19 @@ export default function AdminAddPropertyPage() {
                         'Not set'
                       }
                     />
+
+                    <SummaryRow
+                      label="Inspection fee"
+                      value={
+                        inspectionFee
+                          ? `KES ${Number(
+                              inspectionFee,
+                            ).toLocaleString(
+                              'en-KE',
+                            )}`
+                          : 'Not set'
+                      }
+                    />
                   </>
                 )}
 
@@ -3946,6 +4009,13 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     paddingHorizontal: 14,
     fontSize: 14,
+  },
+
+  helper: {
+    color: COLORS.muted,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 7,
   },
 
   textArea: {

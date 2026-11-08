@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -127,16 +128,16 @@ function formatDateTime(value: string | null | undefined): string {
 
 function getChangedFields(
   request: MarketerProfileChangeRequest
-): Array<{
+): {
   label: string;
   current: string;
   requested: string;
-}> {
-  const fields: Array<{
+}[] {
+  const fields: {
     label: string;
     current: string;
     requested: string;
-  }> = [];
+  }[] = [];
 
   if (
     request.requestedFirstName !== null &&
@@ -223,17 +224,6 @@ export default function MarketerProfileScreen() {
     refreshCurrentMarketer,
   ]);
 
-  useEffect(() => {
-    if (!currentMarketer) {
-      return;
-    }
-
-    setFirstName(currentMarketer.user.firstName ?? '');
-    setLastName(currentMarketer.user.lastName ?? '');
-    setPhone(currentMarketer.user.phone ?? '');
-    setEmail(currentMarketer.user.email ?? '');
-  }, [currentMarketer]);
-
   const handleLogout = () => {
     Alert.alert(
       'Sign out',
@@ -260,7 +250,7 @@ export default function MarketerProfileScreen() {
     );
   };
 
-  const loadProfileChangeRequests = async () => {
+  const loadProfileChangeRequests = useCallback(async () => {
     if (!isAuthenticated) {
       return;
     }
@@ -278,14 +268,15 @@ export default function MarketerProfileScreen() {
     } finally {
       setLoadingRequests(false);
     }
-  };
+  }, [isAuthenticated, getMyProfileChangeRequests]);
 
   useEffect(() => {
-    loadProfileChangeRequests();
-  }, [
-    isAuthenticated,
-    getMyProfileChangeRequests,
-  ]);
+    const timer = setTimeout(() => {
+      void loadProfileChangeRequests();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [loadProfileChangeRequests]);
 
   const pendingRequest = useMemo(
     () =>
@@ -552,7 +543,8 @@ export default function MarketerProfileScreen() {
     : [];
 
   return (
-    <KeyboardAvoidingView
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <KeyboardAvoidingView
       style={styles.container}
       behavior={
         Platform.OS === 'ios'
@@ -1532,7 +1524,8 @@ export default function MarketerProfileScreen() {
           </Text>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -1694,7 +1687,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 18,
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 55,
   },
 

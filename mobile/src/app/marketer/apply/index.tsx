@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -263,6 +264,7 @@ const AVAILABILITY_OPTIONS = [
 ];
 
 export default function MarketerApplyScreen() {
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ mode?: string }>();
   const isUpdateMode = params.mode === 'update';
 
@@ -1110,23 +1112,25 @@ export default function MarketerApplyScreen() {
 
   if (isUpdateMode && loadingApplication) {
     return (
-      <View
+      <SafeAreaView
+        edges={['left', 'right']}
         style={[
           styles.container,
-          { justifyContent: 'center', alignItems: 'center' },
+          { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' },
         ]}
       >
         <ActivityIndicator size="large" color={COLORS.lime} />
         <Text style={{ color: COLORS.muted, marginTop: 14 }}>
           Loading your saved application...
         </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View
-      style={styles.container}
+    <SafeAreaView
+      edges={['left', 'right']}
+      style={[styles.container, { paddingTop: insets.top }]}
     >
       <StatusBar barStyle="light-content" />
 
@@ -1311,7 +1315,7 @@ export default function MarketerApplyScreen() {
           )}
         </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

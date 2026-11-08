@@ -194,7 +194,7 @@ export default function LandlordLogin() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#0B0F10" },
   keyboard: { flex: 1 },
-  content: { flexGrow: 1, padding: 24, paddingTop: 18, paddingBottom: 36, justifyContent: "center" },
+  content: { flexGrow: 1, padding: 24, paddingTop: 0, paddingBottom: 36, justifyContent: "center" },
   back: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 30 },
   backText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
   brandMark: { width: 44, height: 44, borderRadius: 14, backgroundColor: "#D7FF5F", alignItems: "center", justifyContent: "center", marginBottom: 12 },

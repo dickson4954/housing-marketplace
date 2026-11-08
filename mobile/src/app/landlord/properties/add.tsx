@@ -240,6 +240,7 @@ export default function AddLandlordProperty() {
   const [monthlyRent, setMonthlyRent] = useState("");
   const [deposit, setDeposit] = useState("");
   const [viewingFee, setViewingFee] = useState("");
+  const [inspectionFee, setInspectionFee] = useState("");
   const [serviceCharge, setServiceCharge] = useState("");
   const [dayRate, setDayRate] = useState("");
   const [nightRate, setNightRate] = useState("");
@@ -553,6 +554,9 @@ export default function AddLandlordProperty() {
       if (!shortStayType || !stayMode) {
         return "Select the accommodation type and stay mode.";
       }
+      if (!inspectionFee.trim() || Number(inspectionFee) <= 0) {
+        return "Enter a valid short-stay inspection fee.";
+      }
       if (!rooms || Number(rooms) <= 0) {
         return "Enter the number of rooms.";
       }
@@ -645,6 +649,7 @@ export default function AddLandlordProperty() {
         if (dayRate) payload.dayRate = Number(dayRate);
         if (nightRate) payload.nightRate = Number(nightRate);
         if (dayNightRate) payload.dayNightRate = Number(dayNightRate);
+        payload.inspectionFee = Number(inspectionFee);
       }
 
       const response = await fetch(
@@ -913,6 +918,18 @@ export default function AddLandlordProperty() {
                   keyboardType="numeric"
                 />
               )}
+
+              <Field
+                label="Inspection fee (KSh) *"
+                value={inspectionFee}
+                onChangeText={setInspectionFee}
+                keyboardType="numeric"
+                placeholder="e.g. 500"
+              />
+              <Text style={styles.helper}>
+                This one-time fee covers a short-stay property inspection.
+                It is separate from your accommodation rates.
+              </Text>
             </>
           )}
 

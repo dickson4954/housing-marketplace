@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 14,
+    paddingTop: 0,
     paddingBottom: 16,
     justifyContent: 'space-between',
   },

@@ -396,7 +396,11 @@ export function CustomerProvider({
   );
 
   useEffect(() => {
-    restoreSession();
+    const timer = setTimeout(() => {
+      void restoreSession();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [restoreSession]);
 
   const signUp = useCallback(

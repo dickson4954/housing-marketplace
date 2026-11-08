@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import {
   Dimensions,
-  ImageBackground,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,13 +15,14 @@ const { width, height } = Dimensions.get('window');
 export default function IntroThree() {
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={{
+      <View style={styles.background}>
+        <Image
+          source={{
           uri: 'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1600&q=90',
         }}
-        style={styles.background}
-        resizeMode="cover"
-      >
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         <View style={styles.overlay} />
 
         <SafeAreaView style={styles.safeArea}>
@@ -57,7 +58,7 @@ export default function IntroThree() {
             </Text>
 
             <Text style={styles.description}>
-              We want you to know what you're looking at.
+              We want you to know what you&apos;re looking at.
               Listings can include verified locations, real
               property photos, current rent information and
               the details you need before viewing.
@@ -118,7 +119,7 @@ export default function IntroThree() {
             </Pressable>
           </View>
         </SafeAreaView>
-      </ImageBackground>
+      </View>
     </View>
   );
 }

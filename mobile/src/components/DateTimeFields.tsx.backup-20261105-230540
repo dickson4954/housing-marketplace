@@ -1,0 +1,533 @@
+import React, { useMemo, useState } from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3 } from 'lucide-react-native';
+
+const C = {
+  background: '#0B0F10',
+  card: '#14191B',
+  lime: '#D7FF5F',
+  text: '#F4F7F2',
+  muted: '#9CA5A7',
+  border: '#252C2E',
+};
+
+type DatePickerFieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  minimumDate?: string;
+  disabled?: boolean;
+};
+
+type TimePickerFieldProps = {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  minimumTime?: string;
+  disabled?: boolean;
+};
+
+export function getLocalDateString(offsetDays = 0): string {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offsetDays);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+export function addDaysToDate(value: string, days: number): string {
+  const parts = value.split('-').map(Number);
+
+  if (parts.length !== 3 || parts.some(Number.isNaN)) {
+    return getLocalDateString();
+  }
+
+  const date = new Date(parts[0], parts[1] - 1, parts[2], 12);
+  date.setDate(date.getDate() + days);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+export function isValidDateString(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 12);
+
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+function displayDate(value: string): string {
+  if (!isValidDateString(value)) return 'Select a date';
+
+  const [year, month, day] = value.split('-').map(Number);
+
+  return new Date(year, month - 1, day, 12).toLocaleDateString(
+    'en-KE',
+    { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' },
+  );
+}
+
+export function DatePickerField({
+  label,
+  value,
+  onChange,
+  minimumDate = getLocalDateString(),
+  disabled = false,
+}: DatePickerFieldProps) {
+  const [visible, setVisible] = useState(false);
+
+  const initial = (
+    isValidDateString(value) && value >= minimumDate
+  ) ? value : minimumDate;
+
+  const [monthDate, setMonthDate] = useState(() => {
+    const [year, month, day] = initial.split('-').map(Number);
+    return new Date(year, month - 1, day, 12);
+  });
+
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+
+  const days = useMemo(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    return Array.from({ length: daysInMonth }, (_, index) => {
+      const day = index + 1;
+      const dateKey =
+        `${year}-${String(month + 1).padStart(2, '0')}-` +
+        String(day).padStart(2, '0');
+
+      const date = new Date(year, month, day, 12);
+      const offset = Math.round(
+        (date.getTime() -
+          new Date(
+            ...getLocalDateString().split('-').map(Number).map(
+              (part, index) => index === 1 ? part - 1 : part
+            ),
+            12,
+          ).getTime()) / 86400000
+      );
+
+      let label = date.toLocaleDateString('en-KE', {
+        weekday: 'short',
+      });
+
+      if (dateKey === getLocalDateString()) {
+        label = 'Today';
+      } else if (dateKey === getLocalDateString(1)) {
+        label = 'Tomorrow';
+      }
+
+      return {
+        dateKey,
+        day,
+        label,
+        monthLabel: date.toLocaleDateString('en-KE', {
+          month: 'short',
+        }),
+      };
+    }).filter(item => item.dateKey >= minimumDate);
+  }, [year, month, minimumDate]);
+
+  const changeMonth = (direction: number) => {
+    setMonthDate(new Date(year, month + direction, 1, 12));
+  };
+
+  const minimumMonth = minimumDate.slice(0, 7);
+  const currentMonth =
+    `${year}-${String(month + 1).padStart(2, '0')}`;
+
+  const previousDisabled = currentMonth <= minimumMonth;
+
+  const openCalendar = () => {
+    const selected = (
+      isValidDateString(value) && value >= minimumDate
+    ) ? value : minimumDate;
+
+    const [selectedYear, selectedMonth, selectedDay] =
+      selected.split('-').map(Number);
+
+    setMonthDate(
+      new Date(selectedYear, selectedMonth - 1, selectedDay, 12)
+    );
+
+    setVisible(true);
+  };
+
+  return (
+    <>
+      <Text style={styles.label}>{label}</Text>
+
+      <Pressable
+        disabled={disabled}
+        onPress={openCalendar}
+        style={[styles.field, disabled && styles.disabled]}
+      >
+        <CalendarDays color={C.lime} size={20} />
+
+        <Text style={[styles.fieldText, !value && styles.placeholder]}>
+          {value ? displayDate(value) : 'Choose date'}
+        </Text>
+
+        <ChevronRight color={C.muted} size={19} />
+      </Pressable>
+
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVisible(false)}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Choose a date</Text>
+                <Text style={styles.calendarHint}>
+                  Select your preferred day.
+                </Text>
+              </View>
+
+              <Pressable onPress={() => setVisible(false)}>
+                <Text style={styles.close}>Close</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.monthHeader}>
+              <Pressable
+                disabled={previousDisabled}
+                onPress={() => changeMonth(-1)}
+                style={styles.monthButton}
+              >
+                <ChevronLeft
+                  color={previousDisabled ? C.border : C.text}
+                  size={22}
+                />
+              </Pressable>
+
+              <Text style={styles.monthTitle}>
+                {monthDate.toLocaleDateString('en-KE', {
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </Text>
+
+              <Pressable
+                onPress={() => changeMonth(1)}
+                style={styles.monthButton}
+              >
+                <ChevronRight color={C.text} size={22} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateStrip}
+            >
+              {days.map(item => {
+                const selected = item.dateKey === value;
+
+                return (
+                  <Pressable
+                    key={item.dateKey}
+                    onPress={() => {
+                      onChange(item.dateKey);
+                      setVisible(false);
+                    }}
+                    style={[
+                      styles.dateCard,
+                      selected && styles.dateCardActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dateLabel,
+                        selected && styles.dateLabelActive,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+
+                    <Text
+                      style={[
+                        styles.dateValue,
+                        selected && styles.dateValueActive,
+                      ]}
+                    >
+                      {item.day} {item.monthLabel}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {days.length === 0 && (
+              <Text style={styles.calendarHint}>
+                No selectable dates in this month.
+              </Text>
+            )}
+
+            <Text style={styles.calendarHint}>
+              Dates before {displayDate(minimumDate)} cannot be selected.
+            </Text>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const TIME_OPTIONS = Array.from({ length: 29 }, (_, index) => {
+  const totalMinutes = 8 * 60 + index * 30;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+});
+
+export function TimePickerField({
+  label,
+  value,
+  onChange,
+  minimumTime,
+  disabled = false,
+}: TimePickerFieldProps) {
+  const [visible, setVisible] = useState(false);
+
+  const availableTimes = TIME_OPTIONS.filter(time =>
+    !minimumTime || time > minimumTime
+  );
+
+  return (
+    <>
+      <Text style={styles.label}>{label}</Text>
+
+      <Pressable
+        disabled={disabled}
+        onPress={() => setVisible(true)}
+        style={[styles.field, disabled && styles.disabled]}
+      >
+        <Clock3 color={C.lime} size={20} />
+        <Text style={[styles.fieldText, !value && styles.placeholder]}>
+          {value || 'Choose preferred time'}
+        </Text>
+        <ChevronRight color={C.muted} size={19} />
+      </Pressable>
+
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVisible(false)}
+      >
+        <View style={styles.overlay}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Choose a time</Text>
+              <Pressable onPress={() => setVisible(false)}>
+                <Text style={styles.close}>Close</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.calendarHint}>
+              Select your preferred time. The final appointment is subject to confirmation.
+            </Text>
+
+            <ScrollView style={styles.timeList}>
+              <View style={styles.timeGrid}>
+                {availableTimes.map(time => {
+                  const selected = time === value;
+
+                  return (
+                    <Pressable
+                      key={time}
+                      onPress={() => {
+                        onChange(time);
+                        setVisible(false);
+                      }}
+                      style={[
+                        styles.timeOption,
+                        selected && styles.selectedTime,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.timeText,
+                          selected && styles.selectedDayText,
+                        ]}
+                      >
+                        {time}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  label: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 9,
+    marginTop: 20,
+  },
+  field: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 13,
+    paddingHorizontal: 15,
+  },
+  fieldText: {
+    flex: 1,
+    color: C.text,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  placeholder: { color: C.muted, fontWeight: '400' },
+  disabled: { opacity: 0.5 },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.76)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modal: {
+    backgroundColor: C.background,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 18,
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  modalTitle: { color: C.text, fontSize: 18, fontWeight: '800' },
+  close: { color: C.lime, fontWeight: '700' },
+  monthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  monthButton: {
+    width: 38,
+    height: 38,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: C.card,
+    borderRadius: 12,
+  },
+  monthTitle: { color: C.text, fontSize: 16, fontWeight: '800' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  dayCell: {
+    width: '14.2857%',
+    height: 43,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  weekday: { color: C.muted, fontSize: 11, fontWeight: '700' },
+  dayButton: { borderRadius: 12 },
+  selectedDay: { backgroundColor: C.lime },
+  pastDay: { opacity: 0.3 },
+  dayText: { color: C.text, fontSize: 14, fontWeight: '600' },
+  selectedDayText: { color: C.background, fontWeight: '900' },
+  pastDayText: { color: C.muted },
+  calendarHint: {
+    color: C.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  dateStrip: {
+    gap: 9,
+    paddingTop: 8,
+    paddingRight: 10,
+    paddingBottom: 5,
+  },
+  dateCard: {
+    minWidth: 82,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  dateCardActive: {
+    backgroundColor: C.lime,
+    borderColor: C.lime,
+  },
+  dateLabel: {
+    color: C.muted,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  dateLabelActive: {
+    color: C.background,
+  },
+  dateValue: {
+    marginTop: 5,
+    color: C.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dateValueActive: {
+    color: C.background,
+  },
+  timeList: { maxHeight: 390 },
+  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  timeOption: {
+    width: '22%',
+    minHeight: 43,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 11,
+  },
+  selectedTime: {
+    backgroundColor: C.lime,
+    borderColor: C.lime,
+  },
+  timeText: { color: C.text, fontSize: 13, fontWeight: '700' },
+});

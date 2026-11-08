@@ -15,12 +15,10 @@ import {
   Bell,
   Building2,
   CalendarDays,
-  Check,
   ChevronRight,
   FileText,
   LayoutDashboard,
   Lock,
-  Mail,
   Megaphone,
   Menu,
   MoreHorizontal,
@@ -34,6 +32,7 @@ import {
 
 import { API_BASE_URL } from '@/config/api';
 import { useAdmin } from '@/context/AdminContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const COLORS = {
   background: '#0B0F10',
@@ -267,21 +266,14 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!currentAdmin) return;
 
-    setFirstName(
-      currentAdmin.firstName ?? '',
-    );
+    const timer = setTimeout(() => {
+      setFirstName(currentAdmin.firstName ?? '');
+      setLastName(currentAdmin.lastName ?? '');
+      setEmail(currentAdmin.email ?? '');
+      setPhone(currentAdmin.phone ?? '');
+    }, 0);
 
-    setLastName(
-      currentAdmin.lastName ?? '',
-    );
-
-    setEmail(
-      currentAdmin.email ?? '',
-    );
-
-    setPhone(
-      currentAdmin.phone ?? '',
-    );
+    return () => clearTimeout(timer);
   }, [currentAdmin]);
 
   useEffect(() => {
@@ -510,7 +502,7 @@ export default function SettingsPage() {
 
   if (adminLoading) {
     return (
-      <View style={styles.loadingScreen}>
+      <SafeAreaView style={styles.loadingScreen} edges={["top", "left", "right"]}>
         <ActivityIndicator
           size="large"
           color={COLORS.lime}
@@ -519,12 +511,12 @@ export default function SettingsPage() {
         <Text style={styles.loadingText}>
           Loading administrator settings...
         </Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       {!isDesktop && sidebarOpen ? (
         <View style={styles.mobileSidebarOverlay}>
           <Pressable
@@ -884,7 +876,7 @@ export default function SettingsPage() {
           </View>
         </ScrollView>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

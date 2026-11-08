@@ -65,6 +65,7 @@ type Property = {
   monthlyRent?: number | null;
   deposit?: number | null;
   viewingFee?: number | null;
+  inspectionFee?: number | null;
   serviceCharge?: number | null;
   dayRate?: number | null;
   nightRate?: number | null;
@@ -340,6 +341,7 @@ export default function LandlordPropertyDetails() {
         { label: "Day rate", value: money(property?.dayRate) },
         { label: "Overnight rate", value: money(property?.nightRate) },
         { label: "Day and night rate", value: money(property?.dayNightRate) },
+        { label: "Inspection fee", value: money(property?.inspectionFee) },
       ]
     : [
         { label: "Monthly rent", value: money(property?.monthlyRent) },

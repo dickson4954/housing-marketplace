@@ -1,3 +1,4 @@
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -139,7 +140,7 @@ export default function LandlordConcernsScreen() {
   const openCount = concerns.filter((item) => item.status === "OPEN").length;
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -186,7 +187,7 @@ export default function LandlordConcernsScreen() {
           </View>
         ) : error ? (
           <View style={styles.stateBox}>
-            <Text style={styles.errorTitle}>Couldn't load concerns</Text>
+            <Text style={styles.errorTitle}>Couldn&apos;t load concerns</Text>
             <Text style={styles.stateText}>{error}</Text>
             <Pressable
               style={styles.retryButton}
@@ -288,13 +289,13 @@ export default function LandlordConcernsScreen() {
           })
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#0B0F10" },
-  content: { padding: 22, paddingTop: 28, paddingBottom: 48 },
+  content: { padding: 22, paddingTop: 12, paddingBottom: 48 },
   backButton: {
     flexDirection: "row",
     alignItems: "center",

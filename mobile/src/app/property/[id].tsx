@@ -55,6 +55,7 @@ type BackendProperty = {
   monthlyRent?: number | null;
   deposit?: number | null;
   viewingFee?: number | null;
+  inspectionFee?: number | null;
   serviceCharge?: number | null;
 
   dayRate?: number | null;
@@ -583,26 +584,29 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
                 </View>
               </View>
 
-              {property.viewingFee != null &&
-                property.viewingFee > 0 &&
-                property.purpose ===
-                  'LONG_STAY' && (
+              {property.purpose === 'LONG_STAY' &&
+                property.viewingFee != null &&
+                property.viewingFee > 0 ? (
                   <View style={styles.viewingFee}>
-                    <Text
-                      style={styles.viewingFeeLabel}
-                    >
+                    <Text style={styles.viewingFeeLabel}>
                       MAKAZII viewing fee
                     </Text>
-
-                    <Text
-                      style={styles.viewingFeeValue}
-                    >
-                      {formatCurrency(
-                        property.viewingFee,
-                      )}
+                    <Text style={styles.viewingFeeValue}>
+                      {formatCurrency(property.viewingFee)}
                     </Text>
                   </View>
-                )}
+                ) : property.purpose === 'SHORT_STAY' &&
+                  property.inspectionFee != null &&
+                  property.inspectionFee > 0 ? (
+                  <View style={styles.viewingFee}>
+                    <Text style={styles.viewingFeeLabel}>
+                      MAKAZII inspection fee
+                    </Text>
+                    <Text style={styles.viewingFeeValue}>
+                      {formatCurrency(property.inspectionFee)}
+                    </Text>
+                  </View>
+                ) : null}
             </View>
 
             <View style={styles.detailsCard}>
@@ -802,29 +806,38 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
                 View Home
               </Text>
             </Pressable>
-          ) : (
-            <Pressable
-              style={styles.viewHomeButton}
-              onPress={() => {
-                Alert.alert(
-                  'Short-stay booking',
-                  'Short-stay inspection and booking will be connected here next.',
-                );
-              }}
-            >
-              <CalendarDays
-                size={19}
-                color={COLORS.background}
-                strokeWidth={2.3}
-              />
-
-              <Text
-                style={styles.viewHomeButtonText}
+          ) : property.purpose === 'SHORT_STAY' ? (
+            <View style={{ flexDirection: 'row', flex: 1, gap: 8 }}>
+              <Pressable
+                style={[styles.viewHomeButton, { flex: 1, paddingHorizontal: 10 }]}
+                onPress={() => {
+                  router.push({
+                    pathname: '/inspection/[propertyId]',
+                    params: { propertyId: property.id },
+                  });
+                }}
               >
-                Check Stay
-              </Text>
-            </Pressable>
-          )}
+                <CalendarDays
+                  size={18}
+                  color={COLORS.background}
+                  strokeWidth={2.3}
+                />
+                <Text style={styles.viewHomeButtonText}>Check Stay</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.viewHomeButton, { flex: 1, paddingHorizontal: 10 }]}
+                onPress={() => {
+                  router.push({
+                    pathname: '/stay-booking/[propertyId]' as any,
+                    params: { propertyId: property.id },
+                  });
+                }}
+              >
+                <Text style={styles.viewHomeButtonText}>Book Stay</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
       </View>
     </SafeAreaView>

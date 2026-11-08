@@ -565,7 +565,11 @@ export function FeedbackProvider({
     }, []);
 
   useEffect(() => {
-    void refreshFeedback();
+    const timer = setTimeout(() => {
+      void refreshFeedback();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [refreshFeedback]);
 
   const refreshAdminFeedback = useCallback(

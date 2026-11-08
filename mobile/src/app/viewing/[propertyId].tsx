@@ -137,6 +137,7 @@ type PaymentResponse = {
   message?: string;
   data?: {
     payment?: {
+      id?: string | null;
       reference?: string | null;
       status?: string | null;
       amount?: number | null;
@@ -363,15 +364,6 @@ function isFutureViewingSlot(
     requested.getTime() >
     Date.now() + 5 * 60 * 1000
   );
-}
-
-function getViewingDateTimeIso(
-  dateKey: string,
-  time: string,
-): string {
-  return new Date(
-    `${dateKey}T${time}:00+03:00`,
-  ).toISOString();
 }
 
 function MpesaMark({
@@ -627,7 +619,7 @@ export default function ViewingScreen(): React.JSX.Element {
   ] = useState('');
 
   const [
-    viewingId,
+    ,
     setViewingId,
   ] = useState<string | null>(
     null,
@@ -828,26 +820,35 @@ export default function ViewingScreen(): React.JSX.Element {
       setShowPayment(true);
     };
 
-  const validateMpesaPayment =
-    (): boolean => {
-      const cleanPhone =
-        mpesaPhone.replace(
-          /\s+/g,
-          '',
-        );
+  const normalizeMpesaPhone = (): string | null => {
+    const digits = mpesaPhone.replace(/\D/g, '');
 
-      if (
-        cleanPhone.length < 9
-      ) {
-        Alert.alert(
-          'M-PESA number required',
-          'Please enter the M-PESA phone number that should receive the payment prompt.',
-        );
-        return false;
-      }
+    let nationalPhone = digits;
 
-      return true;
-    };
+    if (digits.startsWith('254')) {
+      nationalPhone = digits.slice(3);
+    } else if (digits.startsWith('0')) {
+      nationalPhone = digits.slice(1);
+    }
+
+    if (!/^[17]\d{8}$/.test(nationalPhone)) {
+      return null;
+    }
+
+    return `254${nationalPhone}`;
+  };
+
+  const validateMpesaPayment = (): boolean => {
+    if (!normalizeMpesaPhone()) {
+      Alert.alert(
+        'Valid M-PESA number required',
+        'Enter a valid Kenyan Safaricom-compatible mobile number, for example 712 345 678 or 0712 345 678.',
+      );
+      return false;
+    }
+
+    return true;
+  };
 
   const handleMpesaPayment =
     async () => {
@@ -949,11 +950,15 @@ export default function ViewingScreen(): React.JSX.Element {
         );
 
         /*
-         * 2. Create the viewing payment.
-         *
-         * Backend payment status:
-         * PENDING
+         * Safaricom must receive the customer's actual phone number.
+         * A successful STK request is not proof that money was paid.
          */
+        const normalizedPhone = normalizeMpesaPhone();
+
+        if (!normalizedPhone) {
+          throw new Error('Enter a valid Kenyan M-Pesa phone number.');
+        }
+
         const paymentResponse =
           await fetch(
             `${API_BASE_URL}${API_ENDPOINTS.initiateViewingPayment(
@@ -962,12 +967,12 @@ export default function ViewingScreen(): React.JSX.Element {
             {
               method: 'POST',
               headers: {
-                'Content-Type':
-                  'application/json',
+                'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({
                 method: 'MPESA',
+                phoneNumber: normalizedPhone,
               }),
             },
           );
@@ -978,101 +983,101 @@ export default function ViewingScreen(): React.JSX.Element {
         if (
           !paymentResponse.ok ||
           !paymentPayload.success ||
-          !paymentPayload.data
-            ?.payment
+          !paymentPayload.data?.payment
         ) {
           throw new Error(
             paymentPayload.message ||
-              'We could not initiate the M-PESA payment.',
+              'Safaricom could not initiate the M-Pesa payment.',
           );
         }
 
-        const payment =
-          paymentPayload.data
-            .payment;
+        const payment = paymentPayload.data.payment;
 
-        setPaymentReference(
-          payment.reference ??
-            null,
-        );
+        if (!payment.id) {
+          throw new Error(
+            'The payment was created but its status reference was missing. Do not start another payment; contact support.',
+          );
+        }
 
-        /*
-         * 3. Simulate M-PESA processing.
-         *
-         * This is temporary because real Daraja/STK
-         * integration has not been connected yet.
-         */
-        await new Promise<void>(
-          (resolve) =>
-            setTimeout(
-              resolve,
-              1500,
-            ),
-        );
+        setPaymentReference(payment.reference ?? null);
 
         /*
-         * 4. Confirm the fake payment through
-         * the BACKEND.
+         * Wait for the backend to receive and process Safaricom's
+         * callback. Never confirm payment from the STK response alone.
          *
-         * IMPORTANT:
-         *
-         * This does NOT approve the viewing.
-         *
-         * Backend changes:
-         *
-         * Payment:
-         * PENDING -> SUCCESS
-         *
-         * Viewing:
-         * PENDING_PAYMENT -> PAID
-         *
-         * The viewing then waits for admin approval.
+         * 30 checks x 3 seconds = approximately 90 seconds.
          */
-        const confirmResponse =
-          await fetch(
-            `${API_BASE_URL}${API_ENDPOINTS.fakeConfirmViewingPayment(
-              createdViewingId,
+        let paymentSucceeded = payment.status === 'SUCCESS';
+
+        for (
+          let attempt = 0;
+          attempt < 30 && !paymentSucceeded;
+          attempt += 1
+        ) {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, 3000),
+          );
+
+          const statusResponse = await fetch(
+            `${API_BASE_URL}${API_ENDPOINTS.customerPaymentStatus(
+              payment.id,
             )}`,
             {
-              method: 'POST',
+              method: 'GET',
               headers: {
-                'Content-Type':
-                  'application/json',
                 Authorization: `Bearer ${token}`,
               },
             },
           );
 
-        const confirmPayload =
-          await confirmResponse.json();
+          const statusPayload =
+            (await statusResponse.json()) as PaymentResponse;
 
-        if (
-          !confirmResponse.ok ||
-          !confirmPayload.success
-        ) {
-          throw new Error(
-            confirmPayload.message ||
-              'The M-PESA payment could not be confirmed.',
-          );
+          if (
+            !statusResponse.ok ||
+            !statusPayload.success ||
+            !statusPayload.data?.payment
+          ) {
+            throw new Error(
+              statusPayload.message ||
+                'We could not verify the payment status. Do not pay again; check your Visits screen or contact support.',
+            );
+          }
+
+          const paymentStatus =
+            statusPayload.data.payment.status?.toUpperCase();
+
+          if (paymentStatus === 'SUCCESS') {
+            paymentSucceeded = true;
+            break;
+          }
+
+          if (
+            paymentStatus === 'FAILED' ||
+            paymentStatus === 'CANCELLED' ||
+            paymentStatus === 'EXPIRED'
+          ) {
+            throw new Error(
+              'Safaricom did not complete this payment. Check your M-Pesa messages before trying again.',
+            );
+          }
         }
 
-        /*
-         * Payment is now confirmed.
-         *
-         * Visits will receive:
-         *
-         * PAID
-         *
-         * and display:
-         *
-         * Payment Received
-         */
-        setProcessingPayment(
-          false,
-        );
+        if (!paymentSucceeded) {
+          setProcessingPayment(false);
+          setShowPayment(false);
 
+          Alert.alert(
+            'Payment confirmation pending',
+            'The M-Pesa request was sent, but confirmation has not arrived yet. Do not pay again. Check your M-Pesa messages and the Visits screen before taking further action.',
+          );
+
+          return;
+        }
+
+        // Only a backend-confirmed SUCCESS reaches the receipt screen.
+        setProcessingPayment(false);
         setShowPayment(false);
-
         setSubmitted(true);
       } catch (error) {
         setProcessingPayment(
@@ -1577,7 +1582,7 @@ export default function ViewingScreen(): React.JSX.Element {
                     request and assign
                     the appropriate
                     representative.
-                    The representative's
+                    The representative&apos;s
                     contact details become
                     available to you after
                     assignment.
@@ -2528,7 +2533,7 @@ export default function ViewingScreen(): React.JSX.Element {
                   styles.stkNoticeText
                 }
               >
-                We'll start the M-PESA
+                We&apos;ll start the M-PESA
                 payment process. Your
                 request remains pending
                 until the backend confirms

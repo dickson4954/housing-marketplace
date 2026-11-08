@@ -7,7 +7,6 @@ import React, {
   useState,
 } from 'react';
 
-import * as SecureStore from 'expo-secure-store';
 
 import { API_BASE_URL } from '@/config/api';
 
@@ -280,6 +279,13 @@ function normalizeBackendProperty(
         ? undefined
         : Number(
             property.viewingFee,
+          ),
+
+    inspectionFee:
+      property?.inspectionFee == null
+        ? undefined
+        : Number(
+            property.inspectionFee,
           ),
 
     dayRate:

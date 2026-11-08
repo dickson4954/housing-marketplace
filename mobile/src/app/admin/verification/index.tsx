@@ -14,10 +14,10 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '@/config/api';
 import {
-  ArrowLeft,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -71,6 +71,7 @@ type Property = {
   monthlyRent?: number | null;
   deposit?: number | null;
   viewingFee?: number | null;
+  inspectionFee?: number | null;
   serviceCharge?: number | null;
 
   dayRate?: number | null;
@@ -131,24 +132,20 @@ type Property = {
     phone?: string | null;
   } | null;
 
-  amenities?: Array<
-    | string
+  amenities?: (| string
     | {
         id?: string;
         name?: string | null;
         title?: string | null;
-      }
-  >;
+      })[];
 
-  images?: Array<
-    | string
+  images?: (| string
     | {
         id?: string;
         url?: string | null;
         imageUrl?: string | null;
         path?: string | null;
-      }
-  >;
+      })[];
 
   verificationNotes?: string | null;
   verificationNote?: string | null;
@@ -403,7 +400,11 @@ export default function AdminVerificationScreen() {
   }, []);
 
   useEffect(() => {
-    loadProperties();
+    const timer = setTimeout(() => {
+      void loadProperties();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadProperties]);
 
   const onRefresh = useCallback(async () => {
@@ -606,10 +607,6 @@ export default function AdminVerificationScreen() {
         },
       ]
     );
-  };
-
-  const openProperty = (property: Property) => {
-    setSelectedProperty(property);
   };
 
   const closeProperty = () => {
@@ -897,7 +894,7 @@ export default function AdminVerificationScreen() {
   );
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       {Platform.OS === "web" ? (
         <View style={styles.desktopSidebar}>{renderSidebar()}</View>
       ) : sidebarOpen ? (
@@ -1276,10 +1273,17 @@ export default function AdminVerificationScreen() {
                     value={formatMoney(selectedProperty.deposit)}
                   />
 
-                  <DetailRow
-                    label="Viewing fee"
-                    value={formatMoney(selectedProperty.viewingFee)}
-                  />
+                  {selectedProperty.purpose?.toUpperCase() === "SHORT_STAY" ? (
+                    <DetailRow
+                      label="Inspection fee"
+                      value={formatMoney(selectedProperty.inspectionFee)}
+                    />
+                  ) : (
+                    <DetailRow
+                      label="Viewing fee"
+                      value={formatMoney(selectedProperty.viewingFee)}
+                    />
+                  )}
 
                   <DetailRow
                     label="Service charge"
@@ -1589,7 +1593,7 @@ export default function AdminVerificationScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1853,7 +1857,8 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    padding: 26,
+    paddingHorizontal: 26,
+    paddingTop: 0,
     paddingBottom: 60,
     maxWidth: 1500,
     width: "100%",

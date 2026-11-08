@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import {
   Dimensions,
-  ImageBackground,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,13 +15,14 @@ const { width, height } = Dimensions.get('window');
 export default function IntroTwo() {
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={{
+      <View style={styles.background}>
+        <Image
+          source={{
           uri: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1600&q=90',
         }}
-        style={styles.background}
-        resizeMode="cover"
-      >
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         <View style={styles.overlay} />
 
         <SafeAreaView style={styles.safeArea}>
@@ -58,7 +59,7 @@ export default function IntroTwo() {
 
             <Text style={styles.description}>
               Search across Kenya by county, town and area.
-              Whether you're relocating, starting school or
+              Whether you&apos;re relocating, starting school or
               looking for your next family home, start where
               you want to live.
             </Text>
@@ -107,7 +108,7 @@ export default function IntroTwo() {
             </Pressable>
           </View>
         </SafeAreaView>
-      </ImageBackground>
+      </View>
     </View>
   );
 }

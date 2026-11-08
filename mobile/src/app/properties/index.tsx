@@ -562,12 +562,12 @@ export default function PropertiesScreen() {
                         {isShortStay ? (
                           <>
                             <Text style={styles.depositLabel}>
-                              Viewing fee
+                              Inspection fee
                             </Text>
 
                             <Text style={styles.depositValue}>
                               KSh{' '}
-                              {(property.viewingFee ?? 0).toLocaleString()}
+                              {(property.inspectionFee ?? 0).toLocaleString()}
                             </Text>
                           </>
                         ) : (

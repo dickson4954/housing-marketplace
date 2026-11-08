@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as SecureStore from "expo-secure-store";
 import {
   ArrowLeft,
@@ -54,6 +55,7 @@ type Property = {
   monthlyRent?: number | string | null;
   deposit?: number | string | null;
   viewingFee?: number | string | null;
+  inspectionFee?: number | string | null;
   serviceCharge?: number | string | null;
   dayRate?: number | string | null;
   nightRate?: number | string | null;
@@ -91,22 +93,18 @@ type Property = {
     } | null;
   } | null;
   landlord?: { name?: string | null } | null;
-  images?: Array<
-    string | {
+  images?: (string | {
       id?: string;
       url?: string | null;
       imageUrl?: string | null;
       path?: string | null;
       altText?: string | null;
-    }
-  >;
-  amenities?: Array<
-    string | {
+    })[];
+  amenities?: (string | {
       name?: string | null;
       title?: string | null;
       amenity?: { name?: string | null } | null;
-    }
-  >;
+    })[];
 };
 
 type ApiBody = {
@@ -281,7 +279,11 @@ export default function VerificationPropertyDetailsScreen() {
   }, [id]);
 
   useEffect(() => {
-    loadProperty();
+    const timer = setTimeout(() => {
+      void loadProperty();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadProperty]);
 
   const submitDecision = async (
@@ -426,7 +428,7 @@ export default function VerificationPropertyDetailsScreen() {
     property.status === "CHANGES_REQUIRED";
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
@@ -545,7 +547,11 @@ export default function VerificationPropertyDetailsScreen() {
         <Section title="Pricing">
           <Row label="Monthly rent" value={money(property.monthlyRent)} />
           <Row label="Deposit" value={money(property.deposit)} />
-          <Row label="Viewing fee" value={money(property.viewingFee)} />
+          {property.purpose?.toUpperCase() === "SHORT_STAY" ? (
+            <Row label="Inspection fee" value={money(property.inspectionFee)} />
+          ) : (
+            <Row label="Viewing fee" value={money(property.viewingFee)} />
+          )}
           <Row label="Service charge" value={money(property.serviceCharge)} />
           <Row label="Day rate" value={money(property.dayRate)} />
           <Row label="Night rate" value={money(property.nightRate)} />
@@ -708,7 +714,7 @@ export default function VerificationPropertyDetailsScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -735,7 +741,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 0,
     paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: C.border,

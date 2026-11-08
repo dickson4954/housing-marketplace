@@ -145,8 +145,69 @@ export default function MarketerApplicationDetailScreen() {
   }, [applicationId, request]);
 
   useEffect(() => {
-    void loadApplication();
-  }, [loadApplication]);
+    let active = true;
+
+    const fetchInitialApplication = async () => {
+      if (!applicationId) {
+        setError('The application ID is missing.');
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError('');
+
+      try {
+        const result = await request(
+          `/marketer-applications/admin/${encodeURIComponent(applicationId)}`,
+        );
+
+        const item =
+          result?.data?.application ??
+          result?.application ??
+          result?.data;
+
+        if (!item || typeof item !== 'object') {
+          throw new Error('The API returned no application details.');
+        }
+
+        if (!active) return;
+
+        setApplication(item);
+        setReviewMessage(
+          typeof item.requestedChanges === 'string'
+            ? item.requestedChanges
+            : '',
+        );
+        setRejectionReason(
+          typeof item.rejectionReason === 'string'
+            ? item.rejectionReason
+            : '',
+        );
+        setVerificationMessage(
+          typeof item.idVerificationMessage === 'string'
+            ? item.idVerificationMessage
+            : '',
+        );
+      } catch (e) {
+        if (active) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : 'Unable to load the application.',
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void fetchInitialApplication();
+
+    return () => {
+      active = false;
+    };
+  }, [applicationId, request]);
 
   const performAction = async (
     endpoint: string,
@@ -208,7 +269,7 @@ export default function MarketerApplicationDetailScreen() {
     return String(value);
   };
 
-  const fields: Array<[string, string]> = [
+  const fields: [string, string][] = [
     ['Phone', formatValue(application?.phone)],
     ['Email', formatValue(application?.email)],
     ['ID type', formatValue(application?.idType)],

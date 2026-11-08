@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { Stack, router, usePathname } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const TOKEN_KEY = "makazii_landlord_token";
 
@@ -205,7 +206,7 @@ export default function LandlordLayout() {
   }
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root} edges={["top"]}>
       {desktop ? sidebar : null}
 
       <View style={styles.main}>
@@ -311,7 +312,7 @@ export default function LandlordLayout() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

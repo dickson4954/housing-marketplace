@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../../../config/api';
@@ -22,7 +23,6 @@ import {
   Clock3,
   LayoutDashboard,
   Mail,
-  MapPin,
   Megaphone,
   Menu,
   MoreHorizontal,
@@ -34,7 +34,6 @@ import {
   X,
   AlertTriangle,
   Info,
-  UserPlus,
 } from 'lucide-react-native';
 
 const COLORS = {
@@ -289,24 +288,32 @@ const CATEGORY_FILTERS = [
 
 type FilterValue = (typeof CATEGORY_FILTERS)[number];
 
-function getCategoryIcon(category: NotificationCategory) {
+function CategoryIcon({
+  category,
+  size,
+  color,
+}: {
+  category: NotificationCategory;
+  size: number;
+  color: string;
+}) {
   switch (category) {
     case 'Viewing':
-      return CalendarDays;
+      return <CalendarDays size={size} color={color} />;
     case 'Property':
-      return Building2;
+      return <Building2 size={size} color={color} />;
     case 'Verification':
-      return ShieldCheck;
+      return <ShieldCheck size={size} color={color} />;
     case 'Landlord':
-      return UserRound;
+      return <UserRound size={size} color={color} />;
     case 'Marketer':
-      return Megaphone;
+      return <Megaphone size={size} color={color} />;
     case 'Team':
-      return UsersRound;
+      return <UsersRound size={size} color={color} />;
     case 'System':
-      return Settings;
+      return <Settings size={size} color={color} />;
     default:
-      return Bell;
+      return <Bell size={size} color={color} />;
   }
 }
 
@@ -518,7 +525,6 @@ function NotificationRow({
   onPress: () => void;
   onToggleRead: () => void;
 }) {
-  const Icon = getCategoryIcon(notification.category);
   const iconColor = getCategoryIconColor(notification.category);
 
   return (
@@ -535,7 +541,11 @@ function NotificationRow({
           { borderColor: `${iconColor}35` },
         ]}
       >
-        <Icon size={19} color={iconColor} />
+        <CategoryIcon
+          category={notification.category}
+          size={19}
+          color={iconColor}
+        />
       </View>
 
       <View style={styles.notificationMain}>
@@ -660,61 +670,80 @@ export default function NotificationsPage() {
       item.priority === 'Urgent',
   ).length;
 
-  const loadNotifications = async () => {
-    try {
-      const token = await SecureStore.getItemAsync(
-        'makazii_admin_token',
-      );
+  useEffect(() => {
+    let active = true;
 
-      if (!token) {
-        router.replace('/admin/login' as any);
-        return;
-      }
-
-      const response = await fetch(
-        `${API_BASE_URL}/admin/notifications`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (response.status === 401) {
-        await SecureStore.deleteItemAsync(
+    async function fetchNotifications() {
+      try {
+        const token = await SecureStore.getItemAsync(
           'makazii_admin_token',
         );
-        router.replace('/admin/login' as any);
-        return;
-      }
 
-      const result: NotificationsResponse =
-        await response.json();
+        if (!active) return;
 
-      if (!response.ok || !result.success) {
-        throw new Error(
-          result.message || 'Failed to load notifications',
+        if (!token) {
+          router.replace('/admin/login' as any);
+          return;
+        }
+
+        const response = await fetch(
+          `${API_BASE_URL}/admin/notifications`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
         );
+
+        if (!active) return;
+
+        if (response.status === 401) {
+          await SecureStore.deleteItemAsync(
+            'makazii_admin_token',
+          );
+
+          if (active) {
+            router.replace('/admin/login' as any);
+          }
+          return;
+        }
+
+        const result: NotificationsResponse =
+          await response.json();
+
+        if (!active) return;
+
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.message || 'Failed to load notifications',
+          );
+        }
+
+        setNotifications(
+          (result.data?.notifications || []).map(
+            mapBackendNotification,
+          ),
+        );
+      } catch (error) {
+        if (active) {
+          console.error(
+            'Failed to load admin notifications:',
+            error,
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
-
-      setNotifications(
-        (result.data?.notifications || []).map(
-          mapBackendNotification,
-        ),
-      );
-    } catch (error) {
-      console.error(
-        'Failed to load admin notifications:',
-        error,
-      );
-    } finally {
-      setLoading(false);
     }
-  };
 
-  useEffect(() => {
-    loadNotifications();
-  }, []);
+    void fetchNotifications();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   const filteredNotifications = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -940,7 +969,7 @@ export default function NotificationsPage() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       {isDesktop ? (
         <View style={styles.sidebar}>
           <SidebarContent
@@ -1247,7 +1276,7 @@ export default function NotificationsPage() {
                 Notifications are part of the internal Makazii
                 team portal. Customer and landlord contact
                 information should only be exposed according to
-                the platform's approved workflow.
+                the platform&apos;s approved workflow.
               </Text>
             </View>
           </View>
@@ -1291,17 +1320,13 @@ export default function NotificationsPage() {
                       },
                     ]}
                   >
-                    {React.createElement(
-                      getCategoryIcon(
+                    <CategoryIcon
+                      category={selectedNotification.category}
+                      size={21}
+                      color={getCategoryIconColor(
                         selectedNotification.category,
-                      ),
-                      {
-                        size: 21,
-                        color: getCategoryIconColor(
-                          selectedNotification.category,
-                        ),
-                      },
-                    )}
+                      )}
+                    />
                   </View>
 
                   <View style={styles.modalTitleArea}>
@@ -1460,7 +1485,7 @@ export default function NotificationsPage() {
           ) : null}
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

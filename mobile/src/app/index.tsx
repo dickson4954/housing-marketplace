@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import {
   Dimensions,
-  ImageBackground,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -18,13 +18,14 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={{
+      <View style={styles.image}>
+        <Image
+          source={{
           uri: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1600&q=90',
         }}
-        style={styles.image}
-        resizeMode="cover"
-      >
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
         {/* DARK IMAGE OVERLAY */}
         <View style={styles.overlay} />
 
@@ -148,7 +149,7 @@ export default function WelcomeScreen() {
             </View>
           </View>
         </SafeAreaView>
-      </ImageBackground>
+      </View>
     </View>
   );
 }

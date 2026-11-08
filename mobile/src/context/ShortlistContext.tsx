@@ -33,11 +33,11 @@ type ShortlistContextType = {
 
 type ShortlistResponse = {
   success?: boolean;
-  data?: Array<{
+  data?: {
     id: string;
     propertyId: string;
     createdAt?: string;
-  }>;
+  }[];
   message?: string;
 };
 
@@ -191,7 +191,11 @@ export function ShortlistProvider({
   );
 
   useEffect(() => {
-    void refreshShortlist();
+    const timer = setTimeout(() => {
+      void refreshShortlist();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [refreshShortlist]);
 
   const isShortlisted = useCallback(

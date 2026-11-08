@@ -75,11 +75,11 @@ type ViewingProperty = {
   town?: string;
   area?: string;
   status?: string;
-  images?: Array<{
+  images?: {
     id: string;
     url: string;
     isPrimary?: boolean;
-  }>;
+  }[];
 };
 
 type LandlordViewing = {
@@ -98,7 +98,7 @@ type LandlordViewing = {
 
 type FilterKey = "ALL" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
+const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "ALL", label: "All" },
   { key: "IN_PROGRESS", label: "In progress" },
   { key: "COMPLETED", label: "Completed" },
@@ -462,7 +462,7 @@ export default function LandlordViewings() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.background} />
+      <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
         <Pressable
@@ -590,7 +590,7 @@ export default function LandlordViewings() {
             <View style={styles.stateIcon}>
               <RefreshCw size={22} color={COLORS.amber} />
             </View>
-            <Text style={styles.stateTitle}>Couldn't load viewings</Text>
+            <Text style={styles.stateTitle}>Couldn&apos;t load viewings</Text>
             <Text style={styles.stateDescription}>{error}</Text>
             <Pressable
               onPress={() => void loadViewings(true)}

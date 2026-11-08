@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   BadgeCheck,
   Bell,
+  BedDouble,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -121,6 +122,11 @@ const workspaceItems: MenuItem[] = [
     badge: '24',
   },
   {
+    label: 'Stay Bookings',
+    icon: BedDouble,
+    route: '/admin/stay-bookings',
+  },
+  {
     label: 'Verification',
     icon: ShieldCheck,
     route: '/admin/verification',
@@ -166,13 +172,13 @@ type DashboardProperty = {
   createdAt?: string;
   updatedAt?: string;
   verifiedAt?: string | null;
-  statusHistory?: Array<{
+  statusHistory?: {
     id?: string;
     fromStatus?: string | null;
     toStatus?: string;
     note?: string | null;
     createdAt?: string;
-  }>;
+  }[];
 };
 
 type DashboardViewing = {
@@ -847,155 +853,11 @@ export default function AdminDashboard() {
   const [dashboardError, setDashboardError] =
     useState('');
 
+  const [dashboardNow, setDashboardNow] =
+    useState(() => new Date());
+
   const adminFirstName =
     currentAdmin?.firstName?.trim() || 'Admin';
-
-  const loadDashboard = async () => {
-    try {
-      setDashboardError('');
-
-      const token =
-        Platform.OS === 'web'
-          ? (
-              typeof window !== 'undefined'
-                ? window.localStorage.getItem(
-                    'makazii_admin_token',
-                  )
-                : null
-            )
-          : await SecureStore.getItemAsync(
-              'makazii_admin_token',
-            );
-
-      if (!token) {
-        throw new Error(
-          'Admin session not found.',
-        );
-      }
-
-      const headers = {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      };
-
-      const [
-        propertiesResponse,
-        viewingsResponse,
-        marketersResponse,
-        customersResponse,
-        landlordsResponse,
-      ] = await Promise.all([
-        fetch(
-          `${API_BASE_URL}/admin/properties`,
-          { headers },
-        ),
-        fetch(
-          `${API_BASE_URL}/admin/viewings`,
-          { headers },
-        ),
-        fetch(
-          `${API_BASE_URL}/admin/marketers`,
-          { headers },
-        ),
-        fetch(
-          `${API_BASE_URL}/admin/users`,
-          { headers },
-        ),
-        fetch(
-          `${API_BASE_URL}/admin/landlords`,
-          { headers },
-        ),
-      ]);
-
-      if (
-        propertiesResponse.status === 401 ||
-        propertiesResponse.status === 403 ||
-        viewingsResponse.status === 401 ||
-        viewingsResponse.status === 403 ||
-        marketersResponse.status === 401 ||
-        marketersResponse.status === 403 ||
-        customersResponse.status === 401 ||
-        customersResponse.status === 403 ||
-        landlordsResponse.status === 401 ||
-        landlordsResponse.status === 403
-      ) {
-        throw new Error(
-          'Your admin session has expired. Please sign in again.',
-        );
-      }
-
-      if (
-        !propertiesResponse.ok ||
-        !viewingsResponse.ok ||
-        !marketersResponse.ok ||
-        !customersResponse.ok ||
-        !landlordsResponse.ok
-      ) {
-        throw new Error(
-          'Unable to load dashboard data.',
-        );
-      }
-
-      const [
-        propertiesPayload,
-        viewingsPayload,
-        marketersPayload,
-        customersPayload,
-        landlordsPayload,
-      ] = await Promise.all([
-        propertiesResponse.json(),
-        viewingsResponse.json(),
-        marketersResponse.json(),
-        customersResponse.json(),
-        landlordsResponse.json(),
-      ]);
-
-      if (
-        propertiesPayload?.success === false ||
-        viewingsPayload?.success === false ||
-        marketersPayload?.success === false ||
-        customersPayload?.success === false ||
-        landlordsPayload?.success === false
-      ) {
-        throw new Error(
-          'Unable to load dashboard data.',
-        );
-      }
-
-      setDashboardData({
-        properties: extractArray(
-          propertiesPayload,
-          ['properties'],
-        ),
-        viewings: extractArray(
-          viewingsPayload,
-          ['viewings'],
-        ),
-        marketers: extractArray(
-          marketersPayload,
-          ['marketers'],
-        ),
-        customers: extractArray(
-          customersPayload,
-          ['customers'],
-        ),
-        landlordTotal: Number(
-          landlordsPayload?.summary?.total ??
-          landlordsPayload?.data?.summary?.total ??
-          (Array.isArray(landlordsPayload?.landlords) ? landlordsPayload.landlords.length : 0)
-        ),
-        refreshedAt: new Date(),
-      });
-    } catch (error) {
-      setDashboardError(
-        error instanceof Error
-          ? error.message
-          : 'Unable to load dashboard data.',
-      );
-    } finally {
-      setDashboardLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (isLoading || isLoggingOut) {
@@ -1003,19 +865,177 @@ export default function AdminDashboard() {
     }
 
     if (!currentAdmin) {
-      setDashboardError(
-        'Admin session not found. Please sign in again.',
-      );
-      setDashboardLoading(false);
       router.replace('/admin/login');
       return;
     }
 
-    void loadDashboard();
+    let active = true;
+
+    const loadInitialDashboard = async () => {
+      try {
+        await Promise.resolve();
+
+        if (!active) return;
+        setDashboardError('');
+
+        const token =
+          Platform.OS === 'web'
+            ? (
+                typeof window !== 'undefined'
+                  ? window.localStorage.getItem(
+                      'makazii_admin_token',
+                    )
+                  : null
+              )
+            : await SecureStore.getItemAsync(
+                'makazii_admin_token',
+              );
+
+        if (!active) return;
+
+        if (!token) {
+          throw new Error(
+            'Admin session not found.',
+          );
+        }
+
+        const headers = {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        };
+
+        const [
+          propertiesResponse,
+          viewingsResponse,
+          marketersResponse,
+          customersResponse,
+          landlordsResponse,
+        ] = await Promise.all([
+          fetch(`${API_BASE_URL}/admin/properties`, { headers }),
+          fetch(`${API_BASE_URL}/admin/viewings`, { headers }),
+          fetch(`${API_BASE_URL}/admin/marketers`, { headers }),
+          fetch(`${API_BASE_URL}/admin/users`, { headers }),
+          fetch(`${API_BASE_URL}/admin/landlords`, { headers }),
+        ]);
+
+        if (!active) return;
+
+        if (
+          propertiesResponse.status === 401 ||
+          propertiesResponse.status === 403 ||
+          viewingsResponse.status === 401 ||
+          viewingsResponse.status === 403 ||
+          marketersResponse.status === 401 ||
+          marketersResponse.status === 403 ||
+          customersResponse.status === 401 ||
+          customersResponse.status === 403 ||
+          landlordsResponse.status === 401 ||
+          landlordsResponse.status === 403
+        ) {
+          throw new Error(
+            'Your admin session has expired. Please sign in again.',
+          );
+        }
+
+        if (
+          !propertiesResponse.ok ||
+          !viewingsResponse.ok ||
+          !marketersResponse.ok ||
+          !customersResponse.ok ||
+          !landlordsResponse.ok
+        ) {
+          throw new Error(
+            'Unable to load dashboard data.',
+          );
+        }
+
+        const [
+          propertiesPayload,
+          viewingsPayload,
+          marketersPayload,
+          customersPayload,
+          landlordsPayload,
+        ] = await Promise.all([
+          propertiesResponse.json(),
+          viewingsResponse.json(),
+          marketersResponse.json(),
+          customersResponse.json(),
+          landlordsResponse.json(),
+        ]);
+
+        if (!active) return;
+
+        if (
+          propertiesPayload?.success === false ||
+          viewingsPayload?.success === false ||
+          marketersPayload?.success === false ||
+          customersPayload?.success === false ||
+          landlordsPayload?.success === false
+        ) {
+          throw new Error(
+            'Unable to load dashboard data.',
+          );
+        }
+
+        const refreshedAt = new Date();
+
+        setDashboardNow(refreshedAt);
+        setDashboardData({
+          properties: extractArray(
+            propertiesPayload,
+            ['properties'],
+          ),
+          viewings: extractArray(
+            viewingsPayload,
+            ['viewings'],
+          ),
+          marketers: extractArray(
+            marketersPayload,
+            ['marketers'],
+          ),
+          customers: extractArray(
+            customersPayload,
+            ['customers'],
+          ),
+          landlordTotal: Number(
+            landlordsPayload?.summary?.total ??
+            landlordsPayload?.data?.summary?.total ??
+            (Array.isArray(landlordsPayload?.landlords)
+              ? landlordsPayload.landlords.length
+              : 0)
+          ),
+          refreshedAt,
+        });
+      } catch (error) {
+        if (!active) return;
+
+        setDashboardError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load dashboard data.',
+        );
+      } finally {
+        if (active) {
+          setDashboardLoading(false);
+        }
+      }
+    };
+
+    void loadInitialDashboard();
+
+    return () => {
+      active = false;
+    };
   }, [isLoading, isLoggingOut, currentAdmin]);
 
   const adminInitial =
     adminFirstName.charAt(0).toUpperCase() || 'A';
+
+  const displayedDashboardError =
+    dashboardError ||
+    (!isLoading && !isLoggingOut && !currentAdmin
+      ? 'Admin session not found. Please sign in again.'
+      : '');
 
   const totalProperties =
     dashboardData.properties.length;
@@ -1059,7 +1079,7 @@ export default function AdminDashboard() {
           status !== 'CANCELLED' &&
           status !== 'COMPLETED' &&
           getViewingTimestamp(viewing) >=
-            Date.now()
+            dashboardNow.getTime()
         );
       })
       .sort(
@@ -1294,7 +1314,7 @@ export default function AdminDashboard() {
   const updatedLabel =
     dashboardLoading
       ? 'Loading dashboard...'
-      : dashboardError
+      : displayedDashboardError
         ? 'Unable to refresh'
         : dashboardData.refreshedAt
           ? `Updated ${formatActivityTime(
@@ -1309,10 +1329,7 @@ export default function AdminDashboard() {
 
   return (
     <View style={styles.root}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor={COLORS.background}
-      />
+      <StatusBar barStyle="light-content" />
 
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.appShell}>
@@ -2077,8 +2094,8 @@ export default function AdminDashboard() {
                       styles.bottomInfoText
                     }
                   >
-                    {dashboardError
-                      ? dashboardError
+                    {displayedDashboardError
+                      ? displayedDashboardError
                       : dashboardLoading
                         ? 'Loading live marketplace data from the MAKAZII backend.'
                         : 'Your marketplace is currently operational. All administrative tools are available.'}

@@ -29,7 +29,6 @@ import {
   MoreHorizontal,
   Pencil,
   Phone,
-  Plus,
   Search,
   Settings,
   ShieldCheck,
@@ -372,17 +371,10 @@ export default function LandlordsPage() {
     const landlordId = selectedLandlord?.id;
 
     if (!detailsVisible || !landlordId) {
-      setLandlordQuestionnaire(null);
-      setQuestionnaireError('');
-      setQuestionnaireLoading(false);
       return () => { cancelled = true; };
     }
 
     const loadQuestionnaire = async () => {
-      setLandlordQuestionnaire(null);
-      setQuestionnaireError('');
-      setQuestionnaireLoading(true);
-
       try {
         let token: string | null = null;
 
@@ -398,6 +390,11 @@ export default function LandlordsPage() {
         if (!token) {
           throw new Error('Admin session not found. Please sign in again.');
         }
+
+        if (cancelled) return;
+        setLandlordQuestionnaire(null);
+        setQuestionnaireError('');
+        setQuestionnaireLoading(true);
 
         const response = await fetch(
           `${API_BASE_URL}/admin/landlords/${encodeURIComponent(landlordId)}`,
@@ -451,17 +448,10 @@ export default function LandlordsPage() {
     const landlordId = selectedLandlord?.id;
 
     if (!detailsVisible || !landlordId) {
-      setPerformance(null);
-      setPerformanceError('');
-      setPerformanceLoading(false);
       return () => { cancelled = true; };
     }
 
     const loadPerformance = async () => {
-      setPerformance(null);
-      setPerformanceError('');
-      setPerformanceLoading(true);
-
       try {
         let token: string | null = null;
 
@@ -477,6 +467,11 @@ export default function LandlordsPage() {
         if (!token) {
           throw new Error('Admin session not found. Please sign in again.');
         }
+
+        if (cancelled) return;
+        setPerformance(null);
+        setPerformanceError('');
+        setPerformanceLoading(true);
 
         const response = await fetch(
           `${API_BASE_URL}/admin/landlords/${encodeURIComponent(landlordId)}/performance`,
@@ -1956,7 +1951,7 @@ export default function LandlordsPage() {
                           },
                         )}
                         <Text style={[styles.notesText, { marginTop: 18 }]}>
-                          These are the landlord's stated preferences, not
+                          These are the landlord&apos;s stated preferences, not
                           agreed fees or payment commitments.
                         </Text>
                       </View>
@@ -2187,7 +2182,7 @@ export default function LandlordsPage() {
                           </Text>
                           {performance.payments.length === 0 ? (
                             <Text style={styles.performanceEmpty}>
-                              No recorded payments are linked to this landlord's properties.
+                              No recorded payments are linked to this landlord&apos;s properties.
                             </Text>
                           ) : (
                             performance.payments.map((payment, index) => (

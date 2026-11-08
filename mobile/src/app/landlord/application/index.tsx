@@ -335,7 +335,11 @@ export default function LandlordApplication() {
   }, []);
 
   useEffect(() => {
-    void loadApplication();
+    const timer = setTimeout(() => {
+      void loadApplication();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadApplication]);
 
   useEffect(() => {

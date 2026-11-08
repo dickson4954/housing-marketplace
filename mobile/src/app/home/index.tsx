@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Image,
@@ -74,6 +75,7 @@ type Property = {
   monthlyRent?: number | null;
   deposit?: number | null;
   viewingFee?: number | null;
+  inspectionFee?: number | null;
   serviceCharge?: number | null;
 
   dayRate?: number | null;
@@ -883,7 +885,7 @@ export default function HomeScreen() {
     null;
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -1599,7 +1601,7 @@ export default function HomeScreen() {
 
         <View style={styles.bottomSpace} />
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1610,9 +1612,9 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingTop: 18,
+    paddingTop: 12,
     paddingHorizontal: 18,
-    paddingBottom: 150,
+    paddingBottom: 190,
   },
 
   pressed: {

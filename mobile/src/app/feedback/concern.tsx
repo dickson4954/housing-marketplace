@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -210,7 +211,7 @@ export default function ReportConcernScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -250,7 +251,7 @@ export default function ReportConcernScreen() {
 
           <View style={styles.introContent}>
             <Text style={styles.introTitle}>
-              Something doesn't look right?
+              Something doesn&apos;t look right?
             </Text>
 
             <Text style={styles.introText}>
@@ -491,7 +492,7 @@ export default function ReportConcernScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -503,7 +504,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 20,
-    paddingTop: 22,
+    paddingTop: 12,
     paddingBottom: 45,
   },
 

@@ -17,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import {
   ArrowDownUp,
@@ -79,6 +80,7 @@ type Property = {
   nightRate?: number | string | null;
   dayNightRate?: number | string | null;
   viewingFee?: number | string | null;
+  inspectionFee?: number | string | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
   county?: string | null;
@@ -507,15 +509,25 @@ function DiscoverCard({
           ))}
         </View>
 
-        {property.viewingFee != null && property.viewingFee !== '' ? (
-          <View style={styles.viewingFeeRow}>
-            <Wallet size={15} color={C.muted} />
-            <Text style={styles.viewingFeeLabel}>Viewing fee</Text>
-            <Text style={styles.viewingFeeValue}>
-              {formatMoney(property.viewingFee)}
-            </Text>
-          </View>
-        ) : null}
+        {property.purpose?.toUpperCase() === 'SHORT_STAY'
+          ? property.inspectionFee != null && property.inspectionFee !== '' ? (
+              <View style={styles.viewingFeeRow}>
+                <Wallet size={15} color={C.muted} />
+                <Text style={styles.viewingFeeLabel}>Inspection fee</Text>
+                <Text style={styles.viewingFeeValue}>
+                  {formatMoney(property.inspectionFee)}
+                </Text>
+              </View>
+            ) : null
+          : property.viewingFee != null && property.viewingFee !== '' ? (
+              <View style={styles.viewingFeeRow}>
+                <Wallet size={15} color={C.muted} />
+                <Text style={styles.viewingFeeLabel}>Viewing fee</Text>
+                <Text style={styles.viewingFeeValue}>
+                  {formatMoney(property.viewingFee)}
+                </Text>
+              </View>
+            ) : null}
       </View>
 
       <View style={styles.priceRow}>
@@ -728,7 +740,7 @@ export default function DiscoverScreen() {
   ];
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -879,7 +891,7 @@ export default function DiscoverScreen() {
           <Text style={styles.footerTagline}>FIND YOUR PLACE</Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -890,7 +902,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingTop: 12,
     paddingBottom: 130,
   },
   pageHeader: {

@@ -298,26 +298,6 @@ function formatDateTime(value?: string | null) {
   });
 }
 
-function formatMoney(
-  value?: number | string | null,
-) {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
-    return null;
-  }
-
-  const amount = Number(value);
-
-  if (!Number.isFinite(amount)) {
-    return null;
-  }
-
-  return `KES ${amount.toLocaleString("en-KE")}`;
-}
-
 function getPropertyType(
   property?: BackendProperty,
 ) {
@@ -769,7 +749,11 @@ export default function MarketerViewingsScreen() {
   );
 
   useEffect(() => {
-    loadViewings();
+    const timer = setTimeout(() => {
+      void loadViewings();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadViewings]);
 
   const counts = useMemo(() => {

@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle2, Mail } from 'lucide-react-native';
 
 import { useCustomer } from '@/context/CustomerContext';
@@ -182,7 +183,8 @@ export default function CustomerVerifyEmailScreen() {
 
   if (success) {
     return (
-      <View style={styles.successContainer}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+        <View style={styles.successContainer}>
         <View style={styles.successIcon}>
           <CheckCircle2
             size={42}
@@ -208,13 +210,15 @@ export default function CustomerVerifyEmailScreen() {
           color={COLORS.lime}
           style={styles.successLoader}
         />
-      </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <KeyboardAvoidingView
+      style={{ flex: 1 }}
       behavior={
         Platform.OS === 'ios'
           ? 'padding'
@@ -327,7 +331,7 @@ export default function CustomerVerifyEmailScreen() {
 
             <View style={styles.resendRow}>
               <Text style={styles.resendLabel}>
-                Didn't receive the code?
+                Didn&apos;t receive the code?
               </Text>
 
               <Pressable
@@ -374,7 +378,8 @@ export default function CustomerVerifyEmailScreen() {
           </View>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -387,7 +392,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 40,
   },
 

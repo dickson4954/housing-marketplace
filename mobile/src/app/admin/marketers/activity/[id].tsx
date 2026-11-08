@@ -21,7 +21,6 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock3,
-  XCircle,
 } from 'lucide-react-native';
 import { API_BASE_URL } from '@/config/api';
 
@@ -193,8 +192,77 @@ export default function MarketerActivityScreen() {
   }, [id]);
 
   useEffect(() => {
-    void loadActivity();
-  }, [loadActivity]);
+    let active = true;
+
+    const fetchInitialActivity = async () => {
+      if (!id) {
+        setError('No marketer ID was provided.');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError('');
+
+        const token = await getAdminToken();
+
+        if (!token) {
+          throw new Error(
+            'Your admin session is missing. Please sign in again.',
+          );
+        }
+
+        const response = await fetch(
+          `${API_BASE_URL}/admin/marketers/${encodeURIComponent(id)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/json',
+            },
+          },
+        );
+
+        const body = await response.json().catch(() => ({}));
+
+        if (!response.ok || body?.success === false) {
+          throw new Error(
+            body?.message || 'Unable to load marketer activity.',
+          );
+        }
+
+        const marketer = body?.data?.marketer ?? body?.marketer;
+
+        if (!marketer) {
+          throw new Error(
+            'The server did not return marketer details.',
+          );
+        }
+
+        if (active) {
+          setDetail(marketer as MarketerDetail);
+        }
+      } catch (err) {
+        if (active) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Unable to load activity.',
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void fetchInitialActivity();
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
 
   const properties = detail?.properties ?? [];
   const viewings = detail?.viewings ?? [];

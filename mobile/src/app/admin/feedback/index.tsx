@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import {
   AlertTriangle,
@@ -565,7 +566,7 @@ export default function AdminFeedbackScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -1062,7 +1063,7 @@ export default function AdminFeedbackScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
