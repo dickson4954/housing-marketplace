@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import {
   ChevronLeft,
   Users,
@@ -32,6 +31,7 @@ import {
   isValidDateString,
 } from '@/components/DateTimeFields';
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 type StayMode = 'DAY' | 'OVERNIGHT' | 'DAY_AND_NIGHT' | 'FLEXIBLE';
 type RateType = 'DAY' | 'OVERNIGHT' | 'DAY_AND_NIGHT';
@@ -124,7 +124,7 @@ export default function StayBookingScreen() {
       try {
         if (!propertyId) throw new Error('Property ID is missing.');
 
-        const token = await SecureStore.getItemAsync('makazii_customer_token');
+        const token = await getMarketplaceSessionToken();
         if (!token) {
           Alert.alert('Login required', 'Please log in to book a stay.', [
             { text: 'Log in', onPress: () => router.replace('/onboarding/customer/login') },
@@ -246,7 +246,7 @@ export default function StayBookingScreen() {
 
     setSubmitting(true);
     try {
-      const token = await SecureStore.getItemAsync('makazii_customer_token');
+      const token = await getMarketplaceSessionToken();
       if (!token) throw new Error('Your session has expired. Please log in again.');
 
       const bookingBody = {

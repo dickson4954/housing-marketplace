@@ -24,6 +24,7 @@ import {
   Settings,
   ShieldCheck,
   UserCheck,
+  Store,
   UserRound,
   Users,
   X,
@@ -139,6 +140,11 @@ const peopleItems: MenuItem[] = [
     label: 'Landlords',
     icon: UserRound,
     route: '/admin/landlords',
+  },
+  {
+    label: 'Business Owners',
+    icon: Store,
+    route: '/admin/business-owners',
   },
   {
     label: 'Marketer Applications',

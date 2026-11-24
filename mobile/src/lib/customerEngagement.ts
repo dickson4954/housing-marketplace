@@ -1,9 +1,5 @@
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-
 import { API_BASE_URL } from '@/config/api';
-
-const CUSTOMER_TOKEN_KEY = 'makazii_customer_token';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 export type EngagementSummary = {
   propertyId: string;
@@ -33,17 +29,7 @@ type ApiResponse<T> = {
 };
 
 export async function getCustomerToken(): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      if (typeof window === 'undefined') return null;
-      return window.localStorage?.getItem(CUSTOMER_TOKEN_KEY) ?? null;
-    }
-
-    return await SecureStore.getItemAsync(CUSTOMER_TOKEN_KEY);
-  } catch (error) {
-    console.error('Unable to read customer token:', error);
-    return null;
-  }
+  return getMarketplaceSessionToken();
 }
 
 export async function engagementRequest<T>(

@@ -10,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import {
   CalendarDays,
   CheckCircle2,
@@ -23,6 +22,7 @@ import {
 } from 'lucide-react-native';
 
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 type Booking = {
   id: string;
@@ -160,7 +160,7 @@ export default function StayBookingsSection() {
     else setRefreshing(true);
 
     try {
-      const token = await SecureStore.getItemAsync('makazii_customer_token');
+      const token = await getMarketplaceSessionToken();
 
       if (!token) {
         throw new Error('Your session has expired. Please log in again.');
@@ -242,7 +242,7 @@ export default function StayBookingsSection() {
     setPayingBookingId(booking.id);
 
     try {
-      const token = await SecureStore.getItemAsync('makazii_customer_token');
+      const token = await getMarketplaceSessionToken();
 
       if (!token) {
         throw new Error('Your session has expired. Please log in again.');

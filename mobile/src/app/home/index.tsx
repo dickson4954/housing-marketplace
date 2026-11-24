@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
-  Bell,
   BedDouble,
   Building2,
   ChevronRight,
@@ -30,6 +29,7 @@ import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
 import { useCustomer } from '@/context/CustomerContext';
 import { useShortlist } from '@/context/ShortlistContext';
 import PropertyEngagement from '@/components/PropertyEngagement';
+import NotificationBell from '@/components/NotificationBell';
 
 const COLORS = {
   background: '#0B0F10',
@@ -912,22 +912,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.headerActions}>
-            <Pressable
-              onPress={() => router.push('/account')}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.notificationButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Bell
-                size={20}
-                color={COLORS.white}
-                strokeWidth={1.8}
-              />
-
-              <View style={styles.notificationDot} />
-            </Pressable>
+            <NotificationBell />
 
             <Pressable
               onPress={() => router.push('/account')}

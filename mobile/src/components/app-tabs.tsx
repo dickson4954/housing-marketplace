@@ -56,7 +56,7 @@ const TABS: TabItem[] = [
     badge: 0,
   },
   {
-    label: 'Visits',
+    label: 'My Activity',
     route: '/visits',
     icon: CalendarDays,
     badge: 0,

@@ -31,6 +31,7 @@ import {
   Play,
   Share2,
   ShieldCheck,
+  Store,
   VideoOff,
   Wallet,
 } from 'lucide-react-native';
@@ -39,6 +40,11 @@ import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
 import { useShortlist } from '@/context/ShortlistContext';
 import PropertyEngagement from '@/components/PropertyEngagement';
 import { recordPropertyVideoView } from '@/lib/customerEngagement';
+import {
+  getPublicBusinessStorefronts,
+  resolveStorefrontAssetUrl,
+  type PublicBusinessStorefront,
+} from '@/lib/publicBusinessStorefrontApi';
 
 const C = {
   background: '#0B0F10',
@@ -649,6 +655,8 @@ export default function DiscoverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('latest');
+  const [storefronts, setStorefronts] = useState<PublicBusinessStorefront[]>([]);
+  const [storefrontsLoading, setStorefrontsLoading] = useState(true);
 
   const loadProperties = useCallback(async (refresh = false) => {
     if (refresh) {
@@ -696,10 +704,26 @@ export default function DiscoverScreen() {
     }
   }, []);
 
+  const loadStorefronts = useCallback(async () => {
+    setStorefrontsLoading(true);
+
+    try {
+      const records = await getPublicBusinessStorefronts();
+      setStorefronts(records);
+    } catch (requestError) {
+      // Storefront discovery is independent of the property feed.
+      console.error('Failed to load public business storefronts:', requestError);
+      setStorefronts([]);
+    } finally {
+      setStorefrontsLoading(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void loadProperties();
-    }, [loadProperties]),
+      void loadStorefronts();
+    }, [loadProperties, loadStorefronts]),
   );
 
   const sortedProperties = useMemo(() => {
@@ -747,7 +771,10 @@ export default function DiscoverScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => void loadProperties(true)}
+            onRefresh={() => {
+              void loadProperties(true);
+              void loadStorefronts();
+            }}
             tintColor={C.lime}
           />
         }
@@ -765,6 +792,172 @@ export default function DiscoverScreen() {
             and shortlist places you love.
           </Text>
         </View>
+
+        {(storefrontsLoading || storefronts.length > 0) ? (
+          <View style={styles.storefrontSection}>
+            <View style={styles.storefrontSectionHeader}>
+              <View style={styles.storefrontHeadingGroup}>
+                <Text style={styles.storefrontHeading}>Discover businesses</Text>
+                <Text style={styles.storefrontSubtitle}>
+                  Explore shops, services and their published catalogues.
+                </Text>
+              </View>
+              <Store size={20} color={C.lime} />
+            </View>
+
+            {storefrontsLoading ? (
+              <View style={styles.storefrontLoading}>
+                <ActivityIndicator color={C.lime} size="small" />
+                <Text style={styles.storefrontSubtitle}>
+                  Loading businesses…
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.storefrontList}
+              >
+                {storefronts.map((record) => {
+                  const snapshot = record.storefront;
+                  const business = snapshot.business;
+                  const theme = snapshot.storefront;
+                  const profile = snapshot.profile;
+                  const bannerUrl = resolveStorefrontAssetUrl(theme?.bannerUrl);
+                  const logoUrl = resolveStorefrontAssetUrl(theme?.logoUrl);
+                  const displayName =
+                    profile?.publicDisplayName || business.name;
+                  const category =
+                    business.categoryLabel || business.category;
+                  const itemCount = snapshot.catalogue?.items?.length ?? 0;
+                  const visibleBranches = (record.branches ?? []).slice(0, 2);
+                  const remainingBranchCount = Math.max(
+                    0,
+                    (record.branches?.length ?? 0) - visibleBranches.length,
+                  );
+
+                  return (
+                    <Pressable
+                      key={record.businessId}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${displayName} storefront`}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/store/[businessId]',
+                          params: { businessId: record.businessId },
+                        } as never)
+                      }
+                      style={({ pressed }) => [
+                        styles.storefrontCard,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      {bannerUrl ? (
+                        <Image
+                          source={{ uri: bannerUrl }}
+                          style={styles.storefrontBanner}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.storefrontBanner,
+                            styles.storefrontBannerFallback,
+                            {
+                              backgroundColor:
+                                theme?.accentColor || C.cardSoft,
+                            },
+                          ]}
+                        >
+                          <Store size={30} color={C.lime} />
+                        </View>
+                      )}
+
+                      <View style={styles.storefrontCardBody}>
+                        <View style={styles.storefrontIdentity}>
+                          {logoUrl ? (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              style={styles.storefrontLogo}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={styles.storefrontLogoFallback}>
+                              <Store size={17} color={C.lime} />
+                            </View>
+                          )}
+
+                          <View style={styles.storefrontIdentityText}>
+                            <Text
+                              style={styles.storefrontName}
+                              numberOfLines={1}
+                            >
+                              {displayName}
+                            </Text>
+                            <Text
+                              style={styles.storefrontCategory}
+                              numberOfLines={1}
+                            >
+                              {category}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {visibleBranches.length > 0 ? (
+                          <View style={styles.storefrontBranches}>
+                            {visibleBranches.map((branch) => {
+                              const locationText =
+                                branch.publicLocationLabel?.trim() ||
+                                [
+                                  branch.place,
+                                  branch.ward,
+                                  branch.constituency,
+                                  branch.county,
+                                ]
+                                  .filter((part) => Boolean(part?.trim()))
+                                  .join(', ') ||
+                                branch.name;
+
+                              return (
+                                <View
+                                  key={branch.id}
+                                  style={styles.storefrontBranchRow}
+                                >
+                                  <MapPin size={12} color={C.lime} />
+                                  <Text
+                                    style={styles.storefrontBranchText}
+                                    numberOfLines={1}
+                                  >
+                                    {locationText}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+
+                            {remainingBranchCount > 0 ? (
+                              <Text style={styles.storefrontBranchMore}>
+                                +{remainingBranchCount} more locations
+                              </Text>
+                            ) : null}
+                          </View>
+                        ) : null}
+
+                        <View style={styles.storefrontMeta}>
+                          <Text style={styles.storefrontMetaText}>
+                            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+                          </Text>
+                          <Text style={styles.storefrontOpen}>
+                            View store →
+                          </Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        ) : null}
 
         {comparisonIds.length > 0 ? (
           <Pressable
@@ -896,6 +1089,138 @@ export default function DiscoverScreen() {
 }
 
 const styles = StyleSheet.create({
+  storefrontSection: {
+    marginTop: 22,
+    marginBottom: 8,
+  },
+  storefrontSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 13,
+  },
+  storefrontHeadingGroup: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  storefrontHeading: {
+    color: C.white,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  storefrontSubtitle: {
+    color: C.muted,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 4,
+  },
+  storefrontList: {
+    gap: 12,
+    paddingRight: 4,
+  },
+  storefrontCard: {
+    width: 258,
+    overflow: 'hidden',
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  storefrontBanner: {
+    width: '100%',
+    height: 112,
+  },
+  storefrontBannerFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  storefrontCardBody: {
+    padding: 12,
+  },
+  storefrontIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  storefrontLogo: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    backgroundColor: C.cardSoft,
+  },
+  storefrontLogoFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.cardSoft,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  storefrontIdentityText: {
+    flex: 1,
+  },
+  storefrontName: {
+    color: C.white,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  storefrontCategory: {
+    color: C.muted,
+    fontSize: 10,
+    marginTop: 4,
+  },
+  storefrontBranches: {
+    marginTop: 11,
+    gap: 6,
+  },
+  storefrontBranchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  storefrontBranchText: {
+    flex: 1,
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 14,
+  },
+  storefrontBranchMore: {
+    color: C.lime,
+    fontSize: 9,
+    fontWeight: '800',
+    marginLeft: 18,
+  },
+  storefrontMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 13,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  storefrontMetaText: {
+    color: C.muted,
+    fontSize: 10,
+  },
+  storefrontOpen: {
+    color: C.lime,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  storefrontLoading: {
+    minHeight: 75,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
   screen: {
     flex: 1,
     backgroundColor: C.background,

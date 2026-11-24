@@ -23,10 +23,10 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react-native';
-import * as SecureStore from 'expo-secure-store';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 type BackendImage = {
   id: string;
@@ -335,9 +335,7 @@ export default function PropertyDetailsScreen(): React.JSX.Element {
       return;
     }
 
-    const token = await SecureStore.getItemAsync(
-      'makazii_customer_token',
-    );
+    const token = await getMarketplaceSessionToken();
 
     if (!token) {
       Alert.alert(

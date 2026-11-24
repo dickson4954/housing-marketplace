@@ -1,0 +1,1089 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  ArrowLeft,
+  ArrowRight,
+  BarChart3,
+  Boxes,
+  CalendarDays,
+  ChevronRight,
+  ClipboardList,
+  Contact,
+  LayoutDashboard,
+  Megaphone,
+  Package,
+  Palette,
+  RefreshCw,
+  ShieldCheck,
+  ShoppingCart,
+  Store,
+  Users,
+  Wallet,
+} from 'lucide-react-native';
+
+import {
+  clearBusinessOwnerToken,
+  getApprovedBusinessWorkspace,
+  getBusinessWorkspaceOverview,
+  type BusinessWorkspaceDetails,
+  type BusinessWorkspaceOverview,
+} from '@/lib/businessOwnerApi';
+
+const C = {
+  background: '#0B0F10',
+  card: '#14191B',
+  cardSoft: '#181E20',
+  lime: '#D7FF5F',
+  white: '#FFFFFF',
+  muted: '#9CA5A7',
+  border: '#252C2E',
+  danger: '#FF6B6B',
+  green: '#73D99A',
+  amber: '#F4C66A',
+};
+
+const MODULES = [
+  { title: 'Catalogue', description: 'Products, services, variants and pricing', icon: Package },
+  { title: 'POS & Sales', description: 'In-person sales and receipts', icon: ShoppingCart },
+  { title: 'Orders', description: 'Customer orders and fulfilment', icon: ClipboardList },
+  { title: 'Inventory', description: 'Stock, suppliers and procurement', icon: Boxes },
+  { title: 'Customers', description: 'Customer records and relationships', icon: Contact },
+  { title: 'Finance', description: 'Payments, expenses and reconciliation', icon: Wallet },
+  { title: 'Reports & Analytics', description: 'Performance from real business activity', icon: BarChart3 },
+  { title: 'Marketing', description: 'Promotions and customer engagement', icon: Megaphone },
+  { title: 'Appointments', description: 'Bookings and service schedules', icon: CalendarDays },
+  { title: 'Team', description: 'Staff, roles and access', icon: Users },
+  { title: 'Storefront Designer', description: 'Your public business presence', icon: Palette },
+  { title: 'Settings', description: 'Business profile and preferences', icon: Store },
+];
+
+function readableRole(value?: string | null) {
+  return value ? value.replace(/_/g, ' ').toUpperCase() : 'BUSINESS MEMBER';
+}
+
+function isAuthenticationError(message: string) {
+  const value = message.toLowerCase();
+  return (
+    value.includes('unauthorized') ||
+    value.includes('please sign in') ||
+    value.includes('token expired')
+  );
+}
+
+export default function BusinessWorkspaceScreen() {
+  const params = useLocalSearchParams<{ businessId: string | string[] }>();
+  const businessId = Array.isArray(params.businessId)
+    ? params.businessId[0]
+    : params.businessId;
+
+  const [workspace, setWorkspace] =
+    useState<BusinessWorkspaceDetails | null>(null);
+  const [overview, setOverview] =
+    useState<BusinessWorkspaceOverview | null>(null);
+  const [overviewError, setOverviewError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadOverview = useCallback(async () => {
+    if (!businessId) return;
+
+    try {
+      const overviewResult = await getBusinessWorkspaceOverview(businessId);
+      setOverview(overviewResult);
+      setOverviewError('');
+    } catch (overviewErr) {
+      setOverview(null);
+      setOverviewError(
+        overviewErr instanceof Error
+          ? overviewErr.message
+          : 'Unable to load business overview data.',
+      );
+    }
+  }, [businessId]);
+
+  const loadWorkspace = useCallback(async () => {
+    if (!businessId) {
+      setError('The business workspace could not be identified.');
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    setError('');
+
+    try {
+      const result = await getApprovedBusinessWorkspace(businessId);
+      setWorkspace(result);
+
+      // Load the workspace first. Dashboard data must never block access.
+      setLoading(false);
+      setRefreshing(false);
+
+      // Fetch supplementary dashboard data independently.
+      void loadOverview();
+    } catch (err) {
+      const message = err instanceof Error
+        ? err.message
+        : 'Unable to load this business workspace.';
+
+      setWorkspace(null);
+      setError(message);
+
+      if (isAuthenticationError(message)) {
+        await clearBusinessOwnerToken();
+        router.replace('/business/login');
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [businessId, loadOverview]);
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, [loadWorkspace]);
+
+  function backToApplications() {
+    router.replace('/business/application');
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color={C.lime} />
+          <Text style={styles.stateTitle}>Securing your workspace</Text>
+          <Text style={styles.stateText}>
+            Verifying business approval and your access permissions...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!workspace) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.failurePage}>
+          <View style={styles.failureIcon}>
+            <AlertCircle size={25} color={C.amber} />
+          </View>
+          <Text style={styles.failureTitle}>Workspace unavailable</Text>
+          <Text style={styles.failureText}>
+            {error || 'This workspace is not currently available to your account.'}
+          </Text>
+          <Text style={styles.failureHint}>
+            MAKAZII checks your approval and membership whenever you open a
+            workspace. If access has changed, operational access is withheld.
+          </Text>
+
+          <Pressable style={styles.primaryButton} onPress={backToApplications}>
+            <ArrowLeft size={17} color={C.background} />
+            <Text style={styles.primaryButtonText}>
+              Return to application centre
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => {
+              setLoading(true);
+              void loadWorkspace();
+            }}
+          >
+            <RefreshCw size={16} color={C.lime} />
+            <Text style={styles.secondaryButtonText}>Try again</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const category = workspace.categoryLabel || workspace.category || 'Business';
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" />
+
+      <View style={styles.topBar}>
+        <Pressable
+          style={styles.backButton}
+          onPress={backToApplications}
+          accessibilityRole="button"
+          accessibilityLabel="Back to application centre"
+        >
+          <ArrowLeft size={19} color={C.white} />
+        </Pressable>
+
+        <View style={styles.brandBlock}>
+          <Text style={styles.eyebrow}>MAKAZII BUSINESS</Text>
+          <Text style={styles.topTitle}>Business workspace</Text>
+        </View>
+
+        <View style={styles.secureMark}>
+          <ShieldCheck size={19} color={C.green} />
+        </View>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void loadWorkspace();
+            }}
+            tintColor={C.lime}
+            colors={[C.lime]}
+            progressBackgroundColor={C.card}
+          />
+        }
+      >
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.businessMark}>
+              <Store size={25} color={C.lime} />
+            </View>
+
+            <View style={styles.verifiedPill}>
+              <View style={styles.verifiedDot} />
+              <Text style={styles.verifiedText}>ACCESS VERIFIED</Text>
+            </View>
+          </View>
+
+          <Text style={styles.businessName}>{workspace.name}</Text>
+          <Text style={styles.businessCategory}>{category}</Text>
+
+          <View style={styles.heroDivider} />
+
+          <View style={styles.heroMetaRow}>
+            <View>
+              <Text style={styles.metaLabel}>YOUR ACCESS</Text>
+              <Text style={styles.metaValue}>
+                {readableRole(workspace.membershipRole)}
+              </Text>
+            </View>
+
+            <View style={styles.metaRight}>
+              <Text style={styles.metaLabel}>WORKSPACE STATUS</Text>
+              <Text style={[styles.metaValue, { color: C.green }]}>
+                ACTIVE ACCESS
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.overviewIntro}>
+          <View style={styles.overviewIntroIcon}>
+            <LayoutDashboard size={19} color={C.lime} />
+          </View>
+          <View style={styles.overviewIntroCopy}>
+            <Text style={styles.overviewEyebrow}>BUSINESS OVERVIEW</Text>
+            <Text style={styles.sectionTitle}>Your business at a glance</Text>
+            <Text style={styles.sectionDescription}>
+              A live view of your business setup and daily operations.
+            </Text>
+          </View>
+        </View>
+
+        {overview ? (
+          <>
+            <View style={styles.overviewStatsGrid}>
+              <View style={styles.overviewStatCard}>
+                <View style={styles.overviewStatTop}>
+                  <Package size={17} color={C.lime} />
+                  <Text style={styles.overviewStatLabel}>CATALOGUE</Text>
+                </View>
+                <Text style={styles.overviewStatValue}>
+                  {overview.catalogue.publishedItems.toLocaleString('en-KE')}
+                </Text>
+                <Text style={styles.overviewStatHint}>
+                  Published of {overview.catalogue.totalItems.toLocaleString('en-KE')} items
+                </Text>
+              </View>
+
+              <View style={styles.overviewStatCard}>
+                <View style={styles.overviewStatTop}>
+                  <Boxes size={17} color={C.lime} />
+                  <Text style={styles.overviewStatLabel}>STOCK UNITS</Text>
+                </View>
+                <Text style={styles.overviewStatValue}>
+                  {overview.inventory.totalTrackedUnits.toLocaleString('en-KE')}
+                </Text>
+                <Text style={styles.overviewStatHint}>
+                  Across {overview.inventory.trackedRecords.toLocaleString('en-KE')} tracked records
+                </Text>
+              </View>
+
+              <View style={styles.overviewStatCard}>
+                <View style={styles.overviewStatTop}>
+                  <Store size={17} color={C.lime} />
+                  <Text style={styles.overviewStatLabel}>STOREFRONT</Text>
+                </View>
+                <Text style={[
+                  styles.overviewStatValue,
+                  { fontSize: 15, color: overview.readiness.storefrontPublished ? C.green : C.amber },
+                ]}>
+                  {overview.readiness.storefrontPublished ? 'PUBLISHED' : 'NOT PUBLISHED'}
+                </Text>
+                <Text style={styles.overviewStatHint}>
+                  {overview.storefront.publishedAt
+                    ? `Live since ${new Date(overview.storefront.publishedAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                    : 'Public storefront status'}
+                </Text>
+              </View>
+
+              <View style={styles.overviewStatCard}>
+                <View style={styles.overviewStatTop}>
+                  <ShieldCheck size={17} color={C.lime} />
+                  <Text style={styles.overviewStatLabel}>LOCATIONS</Text>
+                </View>
+                <Text style={styles.overviewStatValue}>
+                  {overview.locations.verified.toLocaleString('en-KE')}
+                  <Text style={styles.overviewStatTotal}>
+                    {' '}/ {overview.locations.active.toLocaleString('en-KE')}
+                  </Text>
+                </Text>
+                <Text style={styles.overviewStatHint}>Verified active locations</Text>
+              </View>
+            </View>
+
+          </>
+        ) : (
+          <View style={styles.overviewUnavailable}>
+            <AlertCircle size={19} color={C.amber} />
+            <View style={styles.overviewUnavailableCopy}>
+              <Text style={styles.healthTitle}>Overview data unavailable</Text>
+              <Text style={styles.healthDetail}>
+                {overviewError || 'The business overview has not loaded yet.'}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  void loadOverview();
+                }}
+                style={styles.overviewRetry}
+              >
+                <RefreshCw size={14} color={C.lime} />
+                <Text style={styles.overviewRetryText}>Try again</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        <Pressable
+          style={styles.setupCard}
+          onPress={() =>
+            router.push((`/business/workspace/${encodeURIComponent(businessId)}/setup`) as any)
+          }
+          accessibilityRole="button"
+          accessibilityLabel="Open business profile setup"
+        >
+          <View style={styles.setupIcon}>
+            <BarChart3 size={20} color={C.lime} />
+          </View>
+          <View style={styles.setupCopy}>
+            <Text style={styles.setupTitle}>
+              Set up your business profile
+            </Text>
+            <Text style={styles.setupText}>
+              Configure your public business name, description, contact
+              details and location, then personalise your storefront.
+            </Text>
+          </View>
+          <ChevronRight size={18} color={C.muted} />
+        </Pressable>
+
+        <View style={styles.sectionHeading}>
+          <View>
+            <Text style={styles.sectionTitle}>Business operations</Text>
+            <Text style={styles.sectionDescription}>
+              One platform. Connected business tools.
+            </Text>
+          </View>
+
+          <View style={styles.moduleCountPill}>
+            <Text style={styles.moduleCountText}>
+              {MODULES.length} MODULES
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.moduleGrid}>
+          {MODULES.map((item) => {
+            const Icon = item.icon;
+            const isCatalogue = item.title === 'Catalogue';
+            const isStorefront = item.title === 'Storefront Designer';
+            const isSettings = item.title === 'Settings';
+            const isAvailable = isCatalogue || isStorefront || isSettings;
+
+            const openModule = () => {
+              if (isCatalogue) {
+                router.push((`/business/workspace/${encodeURIComponent(businessId)}/catalogue`) as any);
+              } else if (isStorefront) {
+                router.push(
+                  (`/business/workspace/${encodeURIComponent(businessId)}/storefront`) as any
+                );
+              } else if (isSettings) {
+                router.push(
+                  (`/business/workspace/${encodeURIComponent(businessId)}/setup`) as any
+                );
+              }
+            };
+
+            const cardContent = (
+              <>
+                <View style={styles.moduleIcon}>
+                  <Icon size={20} color={C.lime} />
+                </View>
+                <Text style={styles.moduleTitle}>{item.title}</Text>
+                <Text style={styles.moduleDescription}>
+                  {item.description}
+                </Text>
+                <View style={styles.comingSoonRow}>
+                  <View
+                    style={[
+                      styles.comingSoonDot,
+                      isAvailable && { backgroundColor: C.green },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.comingSoonText,
+                      isAvailable && { color: C.green },
+                    ]}
+                  >
+                    {isCatalogue
+                      ? 'Manage catalogue'
+                      : isStorefront
+                        ? 'Open designer'
+                        : isSettings
+                          ? 'Configure profile'
+                          : 'Coming soon'}
+                  </Text>
+                  {isAvailable && (
+                    <ChevronRight size={13} color={C.lime} />
+                  )}
+                </View>
+              </>
+            );
+
+            return isAvailable ? (
+              <Pressable
+                key={item.title}
+                style={styles.moduleCard}
+                onPress={openModule}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${item.title}`}
+              >
+                {cardContent}
+              </Pressable>
+            ) : (
+              <View key={item.title} style={styles.moduleCard}>
+                {cardContent}
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.footerNote}>
+          <ShieldCheck size={17} color={C.green} />
+          <Text style={styles.footerText}>
+            Business data and operations will remain separated between
+            businesses under the same owner account. Access is revalidated
+            by the server whenever this workspace is opened.
+          </Text>
+        </View>
+
+        <Pressable
+          style={styles.switchBusinessButton}
+          onPress={backToApplications}
+        >
+          <Text style={styles.switchBusinessText}>
+            Switch business / application centre
+          </Text>
+          <ArrowRight size={16} color={C.lime} />
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: C.background },
+  topBar: {
+    minHeight: 68,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    gap: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandBlock: { flex: 1 },
+  eyebrow: {
+    color: C.lime,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  topTitle: {
+    color: C.white,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  secureMark: {
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: C.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: { padding: 18, paddingBottom: 42 },
+  heroCard: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 22,
+    padding: 19,
+    marginBottom: 25,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  businessMark: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verifiedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: '#183025',
+  },
+  verifiedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.green,
+  },
+  verifiedText: {
+    color: C.green,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  businessName: {
+    color: C.white,
+    fontSize: 23,
+    fontWeight: '900',
+    marginTop: 19,
+  },
+  businessCategory: { color: C.muted, fontSize: 12, marginTop: 5 },
+  heroDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginVertical: 18,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  metaRight: { alignItems: 'flex-end' },
+  metaLabel: {
+    color: C.muted,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  metaValue: {
+    color: C.white,
+    fontSize: 11,
+    fontWeight: '900',
+    marginTop: 6,
+  },
+  welcomeBlock: { marginBottom: 15 },
+  welcomeHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  welcomeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionTitle: { color: C.white, fontSize: 16, fontWeight: '900' },
+  sectionDescription: {
+    color: C.muted,
+    fontSize: 11,
+    lineHeight: 18,
+    marginTop: 7,
+  },
+  setupCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 15,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: '#46502B',
+    backgroundColor: '#171D12',
+    marginBottom: 27,
+  },
+  setupIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#252D19',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  setupCopy: { flex: 1 },
+  setupTitle: { color: C.white, fontSize: 12, fontWeight: '900' },
+  setupText: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 16,
+    marginTop: 5,
+  },
+  overviewIntro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 17,
+  },
+  overviewIntroIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  overviewIntroCopy: { flex: 1 },
+  overviewEyebrow: {
+    color: C.lime,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  overviewStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 13,
+  },
+  overviewStatCard: {
+    width: '48%',
+    flexGrow: 1,
+    minHeight: 116,
+    padding: 13,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  overviewStatTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  overviewStatLabel: {
+    color: C.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  overviewStatValue: {
+    color: C.white,
+    fontSize: 23,
+    fontWeight: '900',
+    marginTop: 12,
+  },
+  overviewStatTotal: {
+    color: C.muted,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  overviewStatHint: {
+    color: C.muted,
+    fontSize: 9,
+    lineHeight: 14,
+    marginTop: 4,
+  },
+  overviewHealthCard: {
+    padding: 15,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    marginBottom: 13,
+  },
+  overviewSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12,
+  },
+  overviewCardTitle: {
+    color: C.white,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  overviewCardSubtitle: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 4,
+  },
+  healthCountPill: {
+    backgroundColor: C.cardSoft,
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  healthCountText: {
+    color: C.amber,
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  healthRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  healthWarningIcon: {
+    width: 29,
+    height: 29,
+    borderRadius: 10,
+    backgroundColor: '#29251A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  healthCopy: { flex: 1 },
+  healthTitle: {
+    color: C.white,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  healthDetail: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 3,
+  },
+  healthAllGood: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingVertical: 11,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  healthAllGoodText: {
+    flex: 1,
+    color: C.green,
+    fontSize: 10,
+    lineHeight: 15,
+    fontWeight: '700',
+  },
+  overviewHealthFooter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingTop: 11,
+    marginTop: 3,
+  },
+  overviewHealthMetric: {
+    color: C.muted,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  activityCard: {
+    padding: 15,
+    borderRadius: 19,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    marginBottom: 17,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  activityIcon: {
+    width: 33,
+    height: 33,
+    borderRadius: 11,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityCopy: { flex: 1 },
+  activityTitle: {
+    color: C.white,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  activityMeta: {
+    color: C.muted,
+    fontSize: 9,
+    marginTop: 4,
+  },
+  activityQuantity: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  activityEmpty: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  overviewUnavailable: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 11,
+    padding: 15,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    marginBottom: 17,
+  },
+  overviewUnavailableCopy: { flex: 1 },
+  overviewRetry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 10,
+    alignSelf: 'flex-start',
+  },
+  overviewRetryText: {
+    color: C.lime,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  moduleCountPill: {
+    backgroundColor: C.cardSoft,
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  moduleCountText: { color: C.muted, fontSize: 9, fontWeight: '900' },
+  moduleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  moduleCard: {
+    width: '48%',
+    flexGrow: 1,
+    minHeight: 157,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 17,
+    padding: 13,
+  },
+  moduleIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  moduleTitle: { color: C.white, fontSize: 12, fontWeight: '900' },
+  moduleDescription: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 5,
+    minHeight: 30,
+  },
+  comingSoonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 10,
+  },
+  comingSoonDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: C.amber,
+  },
+  comingSoonText: { color: C.amber, fontSize: 9, fontWeight: '800' },
+  footerNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    marginTop: 24,
+    paddingHorizontal: 3,
+  },
+  footerText: {
+    flex: 1,
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+  switchBusinessButton: {
+    minHeight: 49,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 14,
+    marginTop: 20,
+  },
+  switchBusinessText: {
+    color: C.lime,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  centerState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 28,
+  },
+  stateTitle: {
+    color: C.white,
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 17,
+  },
+  stateText: {
+    color: C.muted,
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 7,
+  },
+  failurePage: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 26,
+  },
+  failureIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 19,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  failureTitle: {
+    color: C.white,
+    fontSize: 19,
+    fontWeight: '900',
+    marginTop: 18,
+  },
+  failureText: {
+    color: C.white,
+    fontSize: 12,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 9,
+  },
+  failureHint: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 17,
+    textAlign: 'center',
+    marginTop: 12,
+    marginBottom: 22,
+  },
+  primaryButton: {
+    minHeight: 49,
+    width: '100%',
+    borderRadius: 14,
+    backgroundColor: C.lime,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  primaryButtonText: {
+    color: C.background,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  secondaryButton: {
+    minHeight: 45,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 18,
+  },
+  secondaryButtonText: {
+    color: C.lime,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+});

@@ -1,0 +1,1512 @@
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+
+import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
+
+const TOKEN_KEY = 'makazii_business_owner_token';
+
+export type BusinessIdImage = {
+  uri: string;
+  name?: string;
+  mimeType?: string;
+  type?: string;
+  file?: Blob;
+};
+
+export type BusinessLocationEvidenceType =
+  | 'EXTERIOR_PHOTO'
+  | 'INTERIOR_PHOTO'
+  | 'BUSINESS_SIGNAGE'
+  | 'PROOF_OF_OCCUPANCY'
+  | 'BUSINESS_REGISTRATION'
+  | 'OPERATING_LICENSE'
+  | 'UTILITY_BILL'
+  | 'LOCATION_MAP'
+  | 'OTHER';
+
+export type BusinessLocationType =
+  | 'FIXED_PREMISES'
+  | 'HOME_BASED'
+  | 'MARKET_STALL'
+  | 'MOBILE'
+  | 'ONLINE_ONLY'
+  | 'DELIVERY_ONLY'
+  | 'SHARED_PREMISES'
+  | 'TEMPORARY_POPUP';
+
+export type BusinessLocationEvidenceUpload = {
+  evidenceType: BusinessLocationEvidenceType;
+  image: BusinessIdImage;
+};
+
+export type BusinessLocationInput = {
+  name: string;
+  locationType: BusinessLocationType;
+  countyId: string | null;
+  constituencyId: string | null;
+  wardId: string | null;
+  placeId: string | null;
+  locality: string;
+  street: string;
+  building: string;
+  floor: string;
+  unit: string;
+  addressLine1: string;
+  addressLine2: string;
+  directions: string;
+  postalCode: string;
+  addressPinLatitude: number | null;
+  addressPinLongitude: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  gpsConsent: boolean;
+  isPubliclyDiscoverable: boolean;
+  publicLocationLabel: string;
+};
+
+export type PublicGeographyCounty = {
+  id: string;
+  sourceId?: string;
+  name: string;
+};
+
+export type PublicGeographyConstituency = {
+  id: string;
+  sourceId?: string;
+  name: string;
+  countyId: string;
+};
+
+export type PublicGeographyWard = {
+  id: string;
+  sourceId?: string;
+  name: string;
+  constituencyId: string;
+};
+
+export type PublicGeographyPlace = {
+  id: string;
+  name: string;
+};
+
+export type FirstBusinessInput = {
+  name: string;
+  category: string;
+  categoryLabel?: string;
+  description?: string;
+  suggestedCategory?: string;
+  operatingModel?: Record<string, unknown>;
+  requestedModules?: string[];
+  questionnaire: Record<string, unknown>;
+};
+
+export type BusinessOwnerRegistrationInput = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  password: string;
+  nationalIdNumber: string;
+  idFront: BusinessIdImage;
+  idBack: BusinessIdImage;
+  firstBusiness: FirstBusinessInput;
+  location: BusinessLocationInput;
+  locationEvidence: BusinessLocationEvidenceUpload[];
+};
+
+type GeographyEnvelope<T> = {
+  success: boolean;
+  message?: string;
+  data?: T;
+};
+
+async function requestPublicGeography<T>(endpoint: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+
+  let result: GeographyEnvelope<T>;
+
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('The geography service returned an invalid response.');
+  }
+
+  if (!response.ok || !result.success || !result.data) {
+    throw new Error(
+      result.message || 'Unable to load the location options. Please try again.',
+    );
+  }
+
+  return result.data;
+}
+
+export async function getPublicGeographyCounties() {
+  const result = await requestPublicGeography<{
+    counties: PublicGeographyCounty[];
+  }>(API_ENDPOINTS.geographyCounties);
+
+  return result.counties || [];
+}
+
+export async function getPublicGeographyConstituencies(countyId: string) {
+  const result = await requestPublicGeography<{
+    constituencies: PublicGeographyConstituency[];
+  }>(API_ENDPOINTS.geographyConstituencies(encodeURIComponent(countyId)));
+
+  return result.constituencies || [];
+}
+
+export async function getPublicGeographyWards(constituencyId: string) {
+  const result = await requestPublicGeography<{
+    wards: PublicGeographyWard[];
+  }>(API_ENDPOINTS.geographyWards(encodeURIComponent(constituencyId)));
+
+  return result.wards || [];
+}
+
+export async function getPublicGeographyPlaces(countyId: string) {
+  const result = await requestPublicGeography<{
+    places: PublicGeographyPlace[];
+  }>(API_ENDPOINTS.geographyPlaces(encodeURIComponent(countyId)));
+
+  return result.places || [];
+}
+
+export type BusinessApplicationStatus = {
+  status: string;
+  reviewNotes?: string | null;
+  actionRequired?: string | null;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+};
+
+export type OwnerLocationEvidence = {
+  id: string;
+  evidenceType: BusinessLocationEvidenceType;
+  status: string;
+  originalName: string | null;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+};
+
+export type OwnerLocationReview = {
+  action: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type OwnerPrimaryLocation = {
+  id: string;
+  name: string;
+  locationType: BusinessLocationType;
+  isPrimary: boolean;
+  isActive: boolean;
+  isPubliclyDiscoverable: boolean;
+  publicLocationLabel: string | null;
+  countyId: string | null;
+  constituencyId: string | null;
+  wardId: string | null;
+  placeId: string | null;
+  locality: string | null;
+  street: string | null;
+  building: string | null;
+  floor: string | null;
+  unit: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  directions: string | null;
+  postalCode: string | null;
+  addressPinLatitude: number | null;
+  addressPinLongitude: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  gpsConsent: boolean;
+  status: string;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  county: { id: string; name: string } | null;
+  constituency: { id: string; name: string } | null;
+  ward: { id: string; name: string } | null;
+  place: { id: string; name: string } | null;
+  evidence: OwnerLocationEvidence[];
+  reviews: OwnerLocationReview[];
+};
+
+export type OwnerBusiness = {
+  id: string;
+  name: string;
+  category: string;
+  categoryLabel?: string | null;
+  isActive: boolean;
+  application?: BusinessApplicationStatus | null;
+  locations?: OwnerPrimaryLocation[];
+};
+
+export type BusinessOwnerStatus = {
+  id: string;
+  status: string;
+  idVerificationStatus: string;
+  reviewNotes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  businesses: OwnerBusiness[];
+};
+
+export type ApprovedBusinessWorkspace = {
+  id: string;
+  name: string;
+  category: string;
+  categoryLabel?: string | null;
+  description?: string | null;
+  membershipRole: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BusinessWorkspaceDetails = ApprovedBusinessWorkspace & {
+  suggestedCategory?: string | null;
+  operatingModel?: Record<string, unknown> | null;
+  requestedModules?: unknown;
+  application: {
+    status: string | null;
+    submittedAt: string | null;
+    reviewedAt: string | null;
+  };
+};
+
+export type BusinessWorkspaceOverview = {
+  business: {
+    id: string;
+    name: string;
+    category: string;
+    categoryLabel?: string | null;
+  };
+  readiness: {
+    profileReady: boolean;
+    storefrontPublished: boolean;
+    catalogueHasPublishedItems: boolean;
+    primaryLocationVerified: boolean;
+    locationVerificationRequired: boolean;
+  };
+  storefront: {
+    status: string;
+    publishedAt: string | null;
+    lastUpdatedAt: string | null;
+  };
+  catalogue: {
+    totalItems: number;
+    publishedItems: number;
+    draftItems: number;
+    archivedItems: number;
+    activeCategories: number;
+  };
+  inventory: {
+    trackedRecords: number;
+    totalTrackedUnits: number;
+    lowStockRecords: number;
+    outOfStockRecords: number;
+  };
+  locations: {
+    total: number;
+    active: number;
+    verified: number;
+    needingAttention: number;
+  };
+  recentInventoryActivity: Array<{
+    id: string;
+    itemName: string;
+    variantName: string | null;
+    quantityChange: number;
+    quantityBefore: number;
+    quantityAfter: number;
+    reason: string;
+    createdAt: string;
+  }>;
+  generatedAt: string;
+};
+
+type ApiEnvelope<T> = {
+  success: boolean;
+  message?: string;
+  data?: T;
+};
+
+type BusinessOwnerLoginData = {
+  token: string;
+  user: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    role?: string;
+  };
+  businessOwner: {
+    id: string;
+    status: string;
+    idVerificationStatus: string;
+    reviewNotes?: string | null;
+    businesses: OwnerBusiness[];
+  };
+};
+
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+  token?: string,
+): Promise<ApiEnvelope<T>> {
+  const headers = new Headers(options.headers);
+
+  headers.set('Accept', 'application/json');
+
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  if (
+    options.body &&
+    !(options.body instanceof FormData)
+  ) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `${API_BASE_URL}${endpoint}`,
+      {
+        ...options,
+        headers,
+      },
+    );
+  } catch {
+    throw new Error(
+      'Unable to connect to MAKAZII. Check your internet connection and try again.',
+    );
+  }
+
+  let result: ApiEnvelope<T>;
+
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(
+      'The server returned an invalid response.',
+    );
+  }
+
+  if (!response.ok || !result.success) {
+    throw new Error(
+      result.message ||
+      `MAKAZII request failed (${response.status}).`,
+    );
+  }
+
+  return result;
+}
+
+async function saveToken(token: string) {
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TOKEN_KEY, token);
+    }
+    return;
+  }
+
+  await SecureStore.setItemAsync(TOKEN_KEY, token);
+}
+
+export async function getBusinessOwnerToken(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    if (typeof window === 'undefined') return null;
+
+    return window.localStorage.getItem(TOKEN_KEY);
+  }
+
+  return SecureStore.getItemAsync(TOKEN_KEY);
+}
+
+export async function clearBusinessOwnerToken() {
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(TOKEN_KEY);
+    }
+    return;
+  }
+
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
+}
+
+function appendImage(
+  form: FormData,
+  field: string,
+  image: BusinessIdImage,
+  fallbackName: string,
+) {
+  if (!image?.uri) {
+    throw new Error(
+      `Please upload ${field === 'idFront' ? 'the front' : 'the back'} of your National ID.`,
+    );
+  }
+
+  const filename = image.name || fallbackName;
+  const mimeType =
+    image.mimeType ||
+    image.type ||
+    'image/jpeg';
+
+  if (Platform.OS === 'web' && image.file) {
+    form.append(field, image.file, filename);
+    return;
+  }
+
+  form.append(
+    field,
+    {
+      uri: image.uri,
+      name: filename,
+      type: mimeType,
+    } as any,
+  );
+}
+
+function appendLocationEvidence(
+  form: FormData,
+  evidence: BusinessLocationEvidenceUpload[],
+) {
+  if (!Array.isArray(evidence) || evidence.length > 8) {
+    throw new Error('Upload no more than eight location evidence images.');
+  }
+
+  const manifest = evidence.map(item => {
+    if (!item?.image?.uri) {
+      throw new Error('One of the selected location evidence images is missing.');
+    }
+
+    return { evidenceType: item.evidenceType };
+  });
+
+  form.append('evidenceManifest', JSON.stringify(manifest));
+
+  evidence.forEach((item, index) => {
+    const image = item.image;
+    const mimeType = image.mimeType || image.type || 'image/jpeg';
+    const filename = image.name || `location-evidence-${index + 1}.jpg`;
+
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+      throw new Error('Location evidence must be a JPEG, PNG or WebP image.');
+    }
+
+    if (Platform.OS === 'web') {
+      if (!image.file) {
+        throw new Error(
+          'Please remove and reselect this image so the browser can attach the original file.',
+        );
+      }
+
+      form.append('locationEvidence', image.file, filename);
+      return;
+    }
+
+    form.append(
+      'locationEvidence',
+      {
+        uri: image.uri,
+        name: filename,
+        type: mimeType,
+      } as any,
+    );
+  });
+}
+
+function appendLocation(
+  form: FormData,
+  location: BusinessLocationInput,
+  evidence: BusinessLocationEvidenceUpload[],
+) {
+  form.append('location', JSON.stringify(location));
+  appendLocationEvidence(form, evidence);
+}
+
+export async function registerBusinessOwner(
+  input: BusinessOwnerRegistrationInput,
+) {
+  const form = new FormData();
+
+  form.append('firstName', input.firstName.trim());
+  form.append('lastName', input.lastName.trim());
+  form.append('email', input.email.trim().toLowerCase());
+  form.append('phone', input.phone.trim());
+  form.append('password', input.password);
+  form.append('nationalIdNumber', input.nationalIdNumber.trim());
+
+  form.append(
+    'firstBusiness',
+    JSON.stringify(input.firstBusiness),
+  );
+
+  appendLocation(form, input.location, input.locationEvidence);
+
+  appendImage(
+    form,
+    'idFront',
+    input.idFront,
+    'national-id-front.jpg',
+  );
+
+  appendImage(
+    form,
+    'idBack',
+    input.idBack,
+    'national-id-back.jpg',
+  );
+
+  const response = await request<{
+    user: BusinessOwnerLoginData['user'];
+    businessOwner: BusinessOwnerLoginData['businessOwner'];
+    business: OwnerBusiness;
+    verificationRequired: boolean;
+    verificationExpiresAt?: string | null;
+  }>(
+    '/auth/business-owner/signup',
+    {
+      method: 'POST',
+      body: form,
+    },
+  );
+
+  if (!response.data) {
+    throw new Error(
+      'The server did not return the registration details.',
+    );
+  }
+
+  // Registration intentionally does not save a session token.
+  // The applicant verifies their email, then uses Business Login.
+  return response.data;
+}
+
+export async function loginBusinessOwner(
+  emailOrPhone: string,
+  password: string,
+) {
+  const response = await request<BusinessOwnerLoginData>(
+    '/auth/business-owner/login',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        emailOrPhone: emailOrPhone.trim(),
+        password,
+      }),
+    },
+  );
+
+  if (!response.data?.token) {
+    throw new Error(
+      'The server did not return a Business Login token.',
+    );
+  }
+
+  await saveToken(response.data.token);
+
+  return response.data;
+}
+
+export async function verifyBusinessOwnerEmail(
+  email: string,
+  code: string,
+) {
+  const response = await request<{
+    user?: BusinessOwnerLoginData['user'];
+    token?: string;
+  }>(
+    '/auth/business-owner/verify-email',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        code: code.trim(),
+      }),
+    },
+  );
+
+  return response;
+}
+
+export async function resendBusinessOwnerVerification(
+  email: string,
+) {
+  const response = await request<{
+    verificationExpiresAt?: string;
+  }>(
+    '/auth/business-owner/resend-verification',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+      }),
+    },
+  );
+
+  return response;
+}
+
+export async function getBusinessOwnerStatus() {
+  const token = await getBusinessOwnerToken();
+
+  if (!token) {
+    throw new Error(
+      'Please sign in to your business-owner account.',
+    );
+  }
+
+  const response = await request<BusinessOwnerStatus>(
+    '/business-owner/me',
+    {
+      method: 'GET',
+    },
+    token,
+  );
+
+  if (!response.data) {
+    throw new Error(
+      'Unable to retrieve your business application.',
+    );
+  }
+
+  return response.data;
+}
+
+export async function getOwnerBusinesses() {
+  const token = await getBusinessOwnerToken();
+
+  if (!token) {
+    throw new Error(
+      'Please sign in to your business-owner account.',
+    );
+  }
+
+  const response = await request<BusinessOwnerStatus>(
+    '/business-owner/businesses',
+    {
+      method: 'GET',
+    },
+    token,
+  );
+
+  return response.data;
+}
+
+export async function addBusinessForOwner(
+  input: FirstBusinessInput,
+  location: BusinessLocationInput,
+  locationEvidence: BusinessLocationEvidenceUpload[],
+) {
+  const token = await getBusinessOwnerToken();
+
+  if (!token) {
+    throw new Error(
+      'Please sign in to your business-owner account.',
+    );
+  }
+
+  const form = new FormData();
+  form.append('business', JSON.stringify(input));
+  appendLocation(form, location, locationEvidence);
+
+  const response = await request<{
+    business: OwnerBusiness;
+    ownerApplication: {
+      status: string;
+      idVerificationStatus: string;
+    };
+    message: string;
+  }>(
+    '/business-owner/businesses',
+    {
+      method: 'POST',
+      body: form,
+    },
+    token,
+  );
+
+  return response.data;
+}
+
+export async function correctBusinessLocation(
+  businessId: string,
+  locationId: string,
+  location: BusinessLocationInput,
+  locationEvidence: BusinessLocationEvidenceUpload[],
+) {
+  const token = await getBusinessOwnerToken();
+
+  if (!token) {
+    throw new Error(
+      'Please sign in to your business-owner account.',
+    );
+  }
+
+  const form = new FormData();
+  appendLocation(form, location, locationEvidence);
+
+  const response = await request<{
+    businessId: string;
+    location: {
+      id: string;
+      status: string;
+    };
+    message: string;
+  }>(
+    `/business-owner/businesses/${encodeURIComponent(businessId)}/locations/${encodeURIComponent(locationId)}/correction`,
+    {
+      method: 'PATCH',
+      body: form,
+    },
+    token,
+  );
+
+  if (!response.data) {
+    throw new Error(
+      response.message || 'Unable to resubmit your premises details.',
+    );
+  }
+
+  return response.data;
+}
+
+
+/**
+ * Returns only workspaces the backend currently authorises
+ * for this authenticated business-owner account.
+ */
+export async function getApprovedBusinessWorkspaces(): Promise<ApprovedBusinessWorkspace[]> {
+  const token = await getBusinessOwnerToken();
+
+  if (!token) {
+    throw new Error("Please sign in to your business-owner account.");
+  }
+
+  const response = await request<ApprovedBusinessWorkspace[]>(
+    "/business-owner/workspaces",
+    { method: "GET" },
+    token,
+  );
+
+  if (!Array.isArray(response.data)) {
+    throw new Error("The server returned an invalid workspace list.");
+  }
+
+  return response.data;
+}
+
+/**
+ * Retrieves one selected workspace. The backend rechecks
+ * membership, owner approval, identity and business approval.
+ */
+export async function getApprovedBusinessWorkspace(
+  businessId: string,
+): Promise<BusinessWorkspaceDetails> {
+  const token = await getBusinessOwnerToken();
+
+  if (!token) {
+    throw new Error("Please sign in to your business-owner account.");
+  }
+
+  const response = await request<BusinessWorkspaceDetails>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}`,
+    { method: "GET" },
+    token,
+  );
+
+  if (!response.data?.id) {
+    throw new Error("The server did not return the selected workspace.");
+  }
+
+  return response.data;
+}
+
+/**
+ * Retrieves live operational indicators for the selected business.
+ * Access is checked by the protected business-owner workspace endpoint.
+ */
+export async function getBusinessWorkspaceOverview(
+  businessId: string,
+): Promise<BusinessWorkspaceOverview> {
+  const token = await getBusinessOwnerToken();
+
+  if (!token) {
+    throw new Error("Please sign in to your business-owner account.");
+  }
+
+  const response = await request<BusinessWorkspaceOverview>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}/overview`,
+    { method: "GET" },
+    token,
+  );
+
+  if (!response.data?.business?.id) {
+    throw new Error("The server did not return the business overview.");
+  }
+
+  return response.data;
+}
+
+/* =========================================================
+ * BUSINESS SETUP CENTRE AND STOREFRONT DESIGN
+ * ========================================================= */
+
+export type BusinessProfile = {
+  id?: string;
+  businessId?: string;
+  publicDisplayName?: string | null;
+  tagline?: string | null;
+  publicDescription?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  websiteUrl?: string | null;
+  addressLine?: string | null;
+  county?: string | null;
+  constituency?: string | null;
+  ward?: string | null;
+};
+
+export type BusinessProfileInput = {
+  publicDisplayName?: string | null;
+  tagline?: string | null;
+  publicDescription?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  websiteUrl?: string | null;
+  addressLine?: string | null;
+  county?: string | null;
+  constituency?: string | null;
+  ward?: string | null;
+};
+
+export type BusinessStorefront = {
+  id?: string;
+  businessId?: string;
+  themeKey: 'MIDNIGHT' | 'MINIMAL' | 'EDITORIAL' | 'BOLD';
+  layoutKey: 'CLASSIC' | 'GRID' | 'FEATURED';
+  primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  textColor: string;
+  logoUrl?: string | null;
+  bannerUrl?: string | null;
+  customSettings?: Record<string, unknown> | null;
+  status?: 'DRAFT' | 'PUBLISHED';
+  publishedAt?: string | null;
+  updatedAt?: string;
+};
+
+export type BusinessStorefrontInput = {
+  themeKey?: BusinessStorefront['themeKey'];
+  layoutKey?: BusinessStorefront['layoutKey'];
+  primaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  customSettings?: Record<string, unknown>;
+};
+
+export type BusinessSetupResponse = {
+  business: {
+    id: string;
+    name: string;
+    category: string;
+    categoryLabel?: string | null;
+    description?: string | null;
+    suggestedCategory?: string | null;
+    operatingModel?: unknown;
+    requestedModules?: unknown;
+  };
+  profile: BusinessProfile | null;
+  storefront: BusinessStorefront | null;
+  applicationStatus: string | null;
+};
+
+export type BusinessStorefrontPreview = {
+  published: boolean;
+  preview: {
+    business: BusinessSetupResponse['business'];
+    profile: BusinessProfile;
+    storefront: BusinessStorefront;
+    catalogue?: {
+      categories: Array<{
+        id: string;
+        name: string;
+        slug?: string;
+        description?: string | null;
+        displayOrder?: number;
+        imageUrl?: string | null;
+      }>;
+      items: Array<{
+        id: string;
+        categoryId?: string | null;
+        type?: string;
+        name: string;
+        shortDescription?: string | null;
+        description?: string | null;
+        currency?: string | null;
+        priceAmount?: number | string | null;
+        compareAtPriceAmount?: number | string | null;
+        isFeatured?: boolean;
+        displayOrder?: number;
+        category?: { id?: string; name?: string } | null;
+        variants?: Array<{
+          id: string;
+          name: string;
+          priceAmount?: number | string | null;
+        }>;
+        images?: Array<{
+          id: string;
+          altText?: string | null;
+          displayOrder?: number;
+          imageUrl?: string | null;
+        }>;
+      }>;
+    };
+  };
+};
+
+export type BusinessStorefrontPublishResult = {
+  businessId: string;
+  status: 'PUBLISHED';
+  publishedAt: string;
+  message: string;
+};
+
+async function getBusinessSetupToken(): Promise<string> {
+  const token = await getBusinessOwnerToken();
+
+  if (!token) {
+    throw new Error('Please sign in to your business-owner account.');
+  }
+
+  return token;
+}
+
+export type BusinessStorefrontImageKind = 'logo' | 'banner';
+
+export type BusinessStorefrontMediaResult = {
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  updatedAt?: string;
+};
+
+/**
+ * Uploads or replaces one storefront brand image.
+ * The backend keeps the uploaded object private and returns a public image URL.
+ */
+export async function uploadBusinessStorefrontImage(
+  businessId: string,
+  kind: BusinessStorefrontImageKind,
+  image: BusinessIdImage,
+): Promise<BusinessStorefrontMediaResult> {
+  const token = await getBusinessSetupToken();
+  const form = new FormData();
+  const filename = image.name || `${kind}-${Date.now()}.jpg`;
+  const mimeType = image.mimeType || image.type || 'image/jpeg';
+
+  if (Platform.OS === 'web' && image.file) {
+    form.append('image', image.file, filename);
+  } else {
+    form.append('image', {
+      uri: image.uri,
+      name: filename,
+      type: mimeType,
+    } as any);
+  }
+
+  const response = await request<BusinessStorefrontMediaResult>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}/storefront/media/${kind}`,
+    { method: 'POST', body: form },
+    token,
+  );
+
+  if (!response.data) {
+    throw new Error('The server did not return the uploaded storefront image.');
+  }
+
+  return response.data;
+}
+
+/**
+ * Removes an image from the editable storefront draft.
+ * Previously published media remains available to the published snapshot.
+ */
+export async function removeBusinessStorefrontImage(
+  businessId: string,
+  kind: BusinessStorefrontImageKind,
+): Promise<BusinessStorefrontMediaResult> {
+  const token = await getBusinessSetupToken();
+
+  const response = await request<BusinessStorefrontMediaResult>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}/storefront/media/${kind}`,
+    { method: 'DELETE' },
+    token,
+  );
+
+  if (!response.data) {
+    throw new Error('The server did not confirm removal of the storefront image.');
+  }
+
+  return response.data;
+}
+
+/**
+ * Loads the selected business profile and storefront draft.
+ */
+export async function getBusinessSetup(
+  businessId: string,
+): Promise<BusinessSetupResponse> {
+  const token = await getBusinessSetupToken();
+
+  const response = await request<BusinessSetupResponse>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}/setup`,
+    { method: 'GET' },
+    token,
+  );
+
+  if (!response.data?.business?.id) {
+    throw new Error('The server returned invalid business setup details.');
+  }
+
+  return response.data;
+}
+
+/**
+ * Saves business profile changes as a draft.
+ */
+export async function updateBusinessProfile(
+  businessId: string,
+  input: BusinessProfileInput,
+): Promise<BusinessProfile> {
+  const token = await getBusinessSetupToken();
+
+  const response = await request<BusinessProfile>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}/profile`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+
+  if (!response.data) {
+    throw new Error('The server did not return the saved business profile.');
+  }
+
+  return response.data;
+}
+
+/**
+ * Saves storefront appearance as a draft.
+ */
+export async function updateBusinessStorefront(
+  businessId: string,
+  input: BusinessStorefrontInput,
+): Promise<BusinessStorefront> {
+  const token = await getBusinessSetupToken();
+
+  const response = await request<BusinessStorefront>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}/storefront`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+    token,
+  );
+
+  if (!response.data) {
+    throw new Error('The server did not return the saved storefront draft.');
+  }
+
+  return response.data;
+}
+
+/**
+ * Loads the authenticated draft preview.
+ */
+export async function getBusinessStorefrontPreview(
+  businessId: string,
+): Promise<BusinessStorefrontPreview> {
+  const token = await getBusinessSetupToken();
+
+  const response = await request<BusinessStorefrontPreview>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}/storefront/preview`,
+    { method: 'GET' },
+    token,
+  );
+
+  if (!response.data?.preview) {
+    throw new Error('The server did not return the storefront preview.');
+  }
+
+  return response.data;
+}
+
+/**
+ * Publishes the currently saved storefront draft.
+ */
+export async function publishBusinessStorefront(
+  businessId: string,
+): Promise<BusinessStorefrontPublishResult> {
+  const token = await getBusinessSetupToken();
+
+  const response = await request<BusinessStorefrontPublishResult>(
+    `/business-owner/workspaces/${encodeURIComponent(businessId)}/storefront/publish`,
+    {
+      method: 'POST',
+      body: JSON.stringify({}),
+    },
+    token,
+  );
+
+  if (response.data?.status !== 'PUBLISHED') {
+    throw new Error('The server did not confirm storefront publication.');
+  }
+
+  return response.data;
+}
+
+
+/* BUSINESS CATALOGUE API */
+
+export type BusinessCatalogueCategory = {
+  id: string;
+  businessId: string;
+  name: string;
+  slug?: string;
+  description?: string | null;
+  displayOrder?: number;
+  isActive?: boolean;
+  imageStorageKey?: string | null;
+};
+
+export type BusinessCatalogueVariant = {
+  id: string;
+  name: string;
+  sku?: string | null;
+  priceAmount?: number | null;
+  stockQuantity?: number;
+  trackInventory?: boolean;
+  allowBackorder?: boolean;
+  isActive?: boolean;
+  displayOrder?: number;
+  options?: unknown;
+};
+
+export type BusinessCatalogueImage = {
+  id: string;
+  altText?: string | null;
+  displayOrder?: number;
+  storageKey?: string;
+};
+
+export type BusinessCatalogueItem = {
+  id: string;
+  businessId: string;
+  categoryId?: string | null;
+  name: string;
+  slug?: string;
+  type: 'PRODUCT' | 'SERVICE' | 'MENU_ITEM';
+  shortDescription?: string | null;
+  description?: string | null;
+  sku?: string | null;
+  currency?: string;
+  priceAmount?: number;
+  compareAtPriceAmount?: number | null;
+  specifications?: unknown;
+  attributes?: unknown;
+  durationMinutes?: number | null;
+  preparationMinutes?: number | null;
+  stockQuantity?: number;
+  lowStockThreshold?: number;
+  trackInventory?: boolean;
+  allowBackorder?: boolean;
+  isBookable?: boolean;
+  isFeatured?: boolean;
+  displayOrder?: number;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  category?: BusinessCatalogueCategory | null;
+  variants?: BusinessCatalogueVariant[];
+  images?: BusinessCatalogueImage[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type BusinessCatalogueData = {
+  categories: BusinessCatalogueCategory[];
+  items: BusinessCatalogueItem[];
+};
+
+export type BusinessInventoryMovement = {
+  id: string;
+  quantityChange: number;
+  quantityBefore: number;
+  quantityAfter: number;
+  reason: string;
+  note?: string | null;
+  reference?: string | null;
+  createdAt: string;
+  variantId?: string | null;
+};
+
+function cataloguePath(businessId: string) {
+  return `/business-owner/workspaces/${encodeURIComponent(businessId)}/catalogue`;
+}
+
+async function catalogueRequest<T>(
+  businessId: string,
+  path: string,
+  method = 'GET',
+  body?: unknown,
+): Promise<T> {
+  const token = await getBusinessSetupToken();
+  const response = await request<T>(
+    `${cataloguePath(businessId)}${path}`,
+    {
+      method,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    },
+    token,
+  );
+  if (response.data === undefined) {
+    throw new Error(response.message || 'The catalogue request returned no data.');
+  }
+  return response.data;
+}
+
+export async function getBusinessCatalogue(
+  businessId: string,
+): Promise<BusinessCatalogueData> {
+  return catalogueRequest<BusinessCatalogueData>(businessId, '');
+}
+
+export async function createBusinessCatalogueCategory(
+  businessId: string,
+  input: { name: string; description?: string; displayOrder?: number },
+): Promise<BusinessCatalogueCategory> {
+  return catalogueRequest(businessId, '/categories', 'POST', input);
+}
+
+export async function updateBusinessCatalogueCategory(
+  businessId: string,
+  categoryId: string,
+  input: Partial<BusinessCatalogueCategory>,
+): Promise<BusinessCatalogueCategory> {
+  return catalogueRequest(
+    businessId,
+    `/categories/${encodeURIComponent(categoryId)}`,
+    'PATCH',
+    input,
+  );
+}
+
+export async function createBusinessCatalogueItem(
+  businessId: string,
+  input: Record<string, unknown>,
+): Promise<BusinessCatalogueItem> {
+  return catalogueRequest(businessId, '/items', 'POST', input);
+}
+
+export async function updateBusinessCatalogueItem(
+  businessId: string,
+  itemId: string,
+  input: Record<string, unknown>,
+): Promise<BusinessCatalogueItem> {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}`,
+    'PATCH',
+    input,
+  );
+}
+
+export async function publishBusinessCatalogueItem(
+  businessId: string,
+  itemId: string,
+): Promise<BusinessCatalogueItem> {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/publish`,
+    'POST',
+    {},
+  );
+}
+
+export async function archiveBusinessCatalogueItem(
+  businessId: string,
+  itemId: string,
+): Promise<BusinessCatalogueItem> {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/archive`,
+    'POST',
+    {},
+  );
+}
+
+export async function createBusinessCatalogueVariant(
+  businessId: string,
+  itemId: string,
+  input: Record<string, unknown>,
+): Promise<BusinessCatalogueVariant> {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/variants`,
+    'POST',
+    input,
+  );
+}
+
+export async function updateBusinessCatalogueVariant(
+  businessId: string,
+  itemId: string,
+  variantId: string,
+  input: Record<string, unknown>,
+): Promise<BusinessCatalogueVariant> {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/variants/${encodeURIComponent(variantId)}`,
+    'PATCH',
+    input,
+  );
+}
+
+export async function deactivateBusinessCatalogueVariant(
+  businessId: string,
+  itemId: string,
+  variantId: string,
+): Promise<BusinessCatalogueVariant> {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/variants/${encodeURIComponent(variantId)}`,
+    'DELETE',
+  );
+}
+
+export async function adjustBusinessCatalogueInventory(
+  businessId: string,
+  itemId: string,
+  input: {
+    quantityChange: number;
+    reason: string;
+    note?: string;
+    reference?: string;
+    variantId?: string;
+  },
+): Promise<BusinessInventoryMovement> {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/inventory-adjustments`,
+    'POST',
+    input,
+  );
+}
+
+export async function getBusinessInventoryMovements(
+  businessId: string,
+  itemId: string,
+): Promise<BusinessInventoryMovement[]> {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/inventory-movements`,
+  );
+}
+
+async function catalogueMediaRequest<T>(
+  businessId: string,
+  path: string,
+  form: FormData,
+): Promise<T> {
+  const token = await getBusinessSetupToken();
+  const response = await request<T>(
+    `${cataloguePath(businessId)}${path}`,
+    { method: 'POST', body: form },
+    token,
+  );
+  if (response.data === undefined) {
+    throw new Error(response.message || 'The image upload returned no data.');
+  }
+  return response.data;
+}
+
+function appendCatalogueImage(form: FormData, field: string, image: BusinessIdImage) {
+  const filename = image.name || `catalogue-${Date.now()}.jpg`;
+  const mimeType = image.mimeType || image.type || 'image/jpeg';
+  if (Platform.OS === 'web' && image.file) {
+    form.append(field, image.file, filename);
+  } else {
+    form.append(field, {
+      uri: image.uri,
+      name: filename,
+      type: mimeType,
+    } as any);
+  }
+}
+
+export async function uploadBusinessCatalogueCategoryImage(
+  businessId: string,
+  categoryId: string,
+  image: BusinessIdImage,
+) {
+  const form = new FormData();
+  appendCatalogueImage(form, 'image', image);
+  return catalogueMediaRequest<unknown>(
+    businessId,
+    `/categories/${encodeURIComponent(categoryId)}/image`,
+    form,
+  );
+}
+
+export async function uploadBusinessCatalogueItemImages(
+  businessId: string,
+  itemId: string,
+  images: BusinessIdImage[],
+) {
+  if (!images.length || images.length > 8) {
+    throw new Error('Choose between 1 and 8 images per upload.');
+  }
+  const form = new FormData();
+  images.forEach((image) => appendCatalogueImage(form, 'images', image));
+  return catalogueMediaRequest<unknown>(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/images`,
+    form,
+  );
+}
+
+export async function removeBusinessCatalogueCategoryImage(
+  businessId: string,
+  categoryId: string,
+) {
+  return catalogueRequest(
+    businessId,
+    `/categories/${encodeURIComponent(categoryId)}/image`,
+    'DELETE',
+  );
+}
+
+export async function removeBusinessCatalogueItemImage(
+  businessId: string,
+  itemId: string,
+  imageId: string,
+) {
+  return catalogueRequest(
+    businessId,
+    `/items/${encodeURIComponent(itemId)}/images/${encodeURIComponent(imageId)}`,
+    'DELETE',
+  );
+}

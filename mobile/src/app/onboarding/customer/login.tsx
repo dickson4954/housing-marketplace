@@ -570,7 +570,7 @@ export default function CustomerLoginScreen() {
 
             <Text style={styles.securityText}>
               Your account keeps your shortlist,
-              visits and activity connected to you.
+              orders, bookings and activity connected to you.
             </Text>
           </View>
 

@@ -1,0 +1,977 @@
+import React, { useMemo, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
+import {
+  ArrowLeft,
+  ArrowDownUp,
+  Bell,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  CreditCard,
+  Package,
+  PackageCheck,
+  Search,
+  ShoppingBag,
+  SlidersHorizontal,
+  Truck,
+  Wallet,
+} from 'lucide-react-native';
+
+const C = {
+  bg: '#0B0F10',
+  card: '#14191B',
+  soft: '#181E20',
+  lime: '#D7FF5F',
+  white: '#FFFFFF',
+  muted: '#9CA5A7',
+  border: '#252C2E',
+  green: '#73D99A',
+  amber: '#F4C66A',
+  red: '#FF6B6B',
+};
+
+type OrderFilter =
+  | 'ALL'
+  | 'NEW'
+  | 'PROCESSING'
+  | 'READY'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+const FILTERS: { label: string; value: OrderFilter }[] = [
+  { label: 'All orders', value: 'ALL' },
+  { label: 'New', value: 'NEW' },
+  { label: 'Processing', value: 'PROCESSING' },
+  { label: 'Ready', value: 'READY' },
+  { label: 'Completed', value: 'COMPLETED' },
+  { label: 'Cancelled', value: 'CANCELLED' },
+];
+
+function MetricCard({
+  label,
+  value,
+  caption,
+  icon,
+  accent,
+}: {
+  label: string;
+  value: string;
+  caption: string;
+  icon: React.ReactNode;
+  accent?: string;
+}) {
+  return (
+    <View style={styles.metricCard}>
+      <View style={styles.metricTop}>
+        <View style={styles.metricIcon}>{icon}</View>
+        <View style={styles.liveDot} />
+      </View>
+      <Text style={styles.metricValue}>{value}</Text>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricCaption, accent ? { color: accent } : null]}>
+        {caption}
+      </Text>
+    </View>
+  );
+}
+
+function SectionHeading({
+  title,
+  subtitle,
+  right,
+}: {
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionHeading}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+      </View>
+      {right}
+    </View>
+  );
+}
+
+export default function BusinessOrdersScreen() {
+  const params = useLocalSearchParams<{
+    businessId: string | string[];
+  }>();
+
+  const businessId = Array.isArray(params.businessId)
+    ? params.businessId[0]
+    : params.businessId;
+
+  const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState<OrderFilter>('ALL');
+
+  const filteredFilters = useMemo(
+    () => FILTERS.filter((item) => item.value === activeFilter),
+    [activeFilter],
+  );
+
+  const goBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace(
+      (`/business/workspace/${encodeURIComponent(businessId || '')}`) as any,
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
+      <View style={styles.header}>
+        <Pressable
+          style={styles.headerButton}
+          onPress={goBack}
+          accessibilityRole="button"
+          accessibilityLabel="Back to business workspace"
+        >
+          <ArrowLeft size={19} color={C.white} />
+        </Pressable>
+
+        <View style={styles.headerCopy}>
+          <Text style={styles.eyebrow}>BUSINESS OPERATIONS</Text>
+          <Text style={styles.headerTitle}>Orders</Text>
+        </View>
+
+        <Pressable
+          style={styles.headerButton}
+          onPress={() => {}}
+          accessibilityRole="button"
+          accessibilityLabel="Order notifications"
+        >
+          <Bell size={18} color={C.white} />
+          <View style={styles.notificationDot} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.hero}>
+          <View style={styles.heroTop}>
+            <View style={styles.heroIcon}>
+              <ShoppingBag size={23} color={C.lime} />
+            </View>
+            <View style={styles.heroBadge}>
+              <View style={styles.heroBadgeDot} />
+              <Text style={styles.heroBadgeText}>ORDER CENTRE</Text>
+            </View>
+          </View>
+
+          <Text style={styles.heroTitle}>Your orders,</Text>
+          <Text style={styles.heroTitleAccent}>under control.</Text>
+
+          <Text style={styles.heroDescription}>
+            Manage product purchases, track fulfilment, monitor payments and
+            keep every customer order moving.
+          </Text>
+
+          <View style={styles.heroFooter}>
+            <View style={styles.heroFooterItem}>
+              <CheckCircle2 size={14} color={C.green} />
+              <Text style={styles.heroFooterText}>Business workspace</Text>
+            </View>
+            <View style={styles.heroFooterItem}>
+              <Package size={14} color={C.lime} />
+              <Text style={styles.heroFooterText}>Product orders only</Text>
+            </View>
+          </View>
+        </View>
+
+        <SectionHeading
+          title="Order overview"
+          subtitle="Your live business order activity"
+        />
+
+        <View style={styles.metricsGrid}>
+          <MetricCard
+            label="New orders"
+            value="—"
+            caption="Awaiting live data"
+            icon={<ShoppingBag size={18} color={C.lime} />}
+          />
+          <MetricCard
+            label="Processing"
+            value="—"
+            caption="Awaiting live data"
+            icon={<Clock3 size={18} color={C.amber} />}
+          />
+          <MetricCard
+            label="Ready to fulfil"
+            value="—"
+            caption="Awaiting live data"
+            icon={<PackageCheck size={18} color={C.green} />}
+          />
+          <MetricCard
+            label="Completed"
+            value="—"
+            caption="Awaiting live data"
+            icon={<CheckCircle2 size={18} color={C.green} />}
+          />
+        </View>
+
+        <SectionHeading
+          title="Order performance"
+          subtitle="Financial and fulfilment insights"
+        />
+
+        <View style={styles.performanceCard}>
+          <View style={styles.performanceHeader}>
+            <View>
+              <Text style={styles.performanceEyebrow}>PRODUCT REVENUE</Text>
+              <Text style={styles.performanceValue}>—</Text>
+              <Text style={styles.performanceHint}>
+                Revenue will appear when verified order data is connected.
+              </Text>
+            </View>
+            <View style={styles.performanceIcon}>
+              <Wallet size={21} color={C.lime} />
+            </View>
+          </View>
+
+          <View style={styles.performanceDivider} />
+
+          <View style={styles.performanceStats}>
+            <View style={styles.performanceStat}>
+              <Text style={styles.performanceStatValue}>—</Text>
+              <Text style={styles.performanceStatLabel}>Average order value</Text>
+            </View>
+            <View style={styles.verticalDivider} />
+            <View style={styles.performanceStat}>
+              <Text style={styles.performanceStatValue}>—</Text>
+              <Text style={styles.performanceStatLabel}>Completion rate</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.commissionCard}>
+          <View style={styles.commissionIcon}>
+            <CreditCard size={19} color={C.lime} />
+          </View>
+          <View style={styles.commissionCopy}>
+            <Text style={styles.commissionTitle}>Marketplace commission</Text>
+            <Text style={styles.commissionRate}>10%</Text>
+            <Text style={styles.commissionDescription}>
+              Calculated on the seller's product subtotal after discounts.
+              Delivery fees and taxes are excluded.
+            </Text>
+          </View>
+        </View>
+
+        <SectionHeading
+          title="Order inbox"
+          subtitle="Find and manage customer orders"
+          right={
+            <View style={styles.inboxCount}>
+              <Text style={styles.inboxCountText}>LIVE DATA PENDING</Text>
+            </View>
+          }
+        />
+
+        <View style={styles.searchBox}>
+          <Search size={17} color={C.muted} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search order reference or customer"
+            placeholderTextColor="#697477"
+            style={styles.searchInput}
+            returnKeyType="search"
+            autoCapitalize="none"
+          />
+          {search.length > 0 ? (
+            <Pressable onPress={() => setSearch('')} hitSlop={8}>
+              <Text style={styles.clearSearch}>Clear</Text>
+            </Pressable>
+          ) : (
+            <SlidersHorizontal size={17} color={C.muted} />
+          )}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterStrip}
+        >
+          {FILTERS.map((filter) => {
+            const selected = activeFilter === filter.value;
+
+            return (
+              <Pressable
+                key={filter.value}
+                onPress={() => setActiveFilter(filter.value)}
+                style={[
+                  styles.filterChip,
+                  selected && styles.filterChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    selected && styles.filterTextActive,
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.emptyOrdersCard}>
+          <View style={styles.emptyIllustration}>
+            <View style={styles.emptyIconCircle}>
+              <ShoppingBag size={30} color={C.lime} />
+            </View>
+            <View style={styles.emptySparkOne} />
+            <View style={styles.emptySparkTwo} />
+          </View>
+
+          <Text style={styles.emptyTitle}>Your order inbox is ready</Text>
+          <Text style={styles.emptyDescription}>
+            When customers place product orders, they will appear here.
+            You will be able to review each order, accept or reject it,
+            prepare items and update fulfilment progress.
+          </Text>
+
+          <View style={styles.emptyDivider} />
+
+          <View style={styles.emptyFeature}>
+            <View style={styles.emptyFeatureIcon}>
+              <CreditCard size={15} color={C.green} />
+            </View>
+            <Text style={styles.emptyFeatureText}>
+              Payment status and reconciliation
+            </Text>
+          </View>
+
+          <View style={styles.emptyFeature}>
+            <View style={styles.emptyFeatureIcon}>
+              <PackageCheck size={15} color={C.lime} />
+            </View>
+            <Text style={styles.emptyFeatureText}>
+              Order acceptance and preparation
+            </Text>
+          </View>
+
+          <View style={styles.emptyFeature}>
+            <View style={styles.emptyFeatureIcon}>
+              <Truck size={15} color={C.amber} />
+            </View>
+            <Text style={styles.emptyFeatureText}>
+              Delivery, pickup and fulfilment tracking
+            </Text>
+          </View>
+
+          <View style={styles.connectionNotice}>
+            <View style={styles.connectionDot} />
+            <Text style={styles.connectionText}>
+              Waiting for secure order data connection
+            </Text>
+          </View>
+        </View>
+
+        <SectionHeading
+          title="Order operations"
+          subtitle="Tools available inside this workspace"
+        />
+
+        <View style={styles.operationsCard}>
+          <View style={styles.operationRow}>
+            <View style={styles.operationIcon}>
+              <Package size={18} color={C.lime} />
+            </View>
+            <View style={styles.operationCopy}>
+              <Text style={styles.operationTitle}>Order management</Text>
+              <Text style={styles.operationDescription}>
+                Review orders, items, customer details and order history.
+              </Text>
+            </View>
+            <ChevronRight size={17} color={C.muted} />
+          </View>
+
+          <View style={styles.operationDivider} />
+
+          <View style={styles.operationRow}>
+            <View style={styles.operationIcon}>
+              <Truck size={18} color={C.lime} />
+            </View>
+            <View style={styles.operationCopy}>
+              <Text style={styles.operationTitle}>Fulfilment tracking</Text>
+              <Text style={styles.operationDescription}>
+                Coordinate delivery, collection and service fulfilment.
+              </Text>
+            </View>
+            <ChevronRight size={17} color={C.muted} />
+          </View>
+
+          <View style={styles.operationDivider} />
+
+          <View style={styles.operationRow}>
+            <View style={styles.operationIcon}>
+              <CreditCard size={18} color={C.lime} />
+            </View>
+            <View style={styles.operationCopy}>
+              <Text style={styles.operationTitle}>Payments and settlements</Text>
+              <Text style={styles.operationDescription}>
+                Track verified payments, commission and seller balances.
+              </Text>
+            </View>
+            <ChevronRight size={17} color={C.muted} />
+          </View>
+        </View>
+
+        <View style={styles.footerNote}>
+          <CheckCircle2 size={16} color={C.green} />
+          <Text style={styles.footerText}>
+            Orders are isolated to the business authorised for this workspace.
+            Property rentals, viewings and short-stay bookings remain separate.
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    gap: 12,
+  },
+  headerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: C.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCopy: {
+    flex: 1,
+  },
+  eyebrow: {
+    color: C.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  headerTitle: {
+    color: C.white,
+    fontSize: 21,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 9,
+    right: 10,
+    width: 7,
+    height: 7,
+    borderRadius: 5,
+    backgroundColor: C.lime,
+  },
+  content: {
+    padding: 18,
+    paddingBottom: 55,
+    gap: 17,
+  },
+  hero: {
+    backgroundColor: '#171F19',
+    borderColor: '#354326',
+    borderWidth: 1,
+    borderRadius: 23,
+    padding: 19,
+    overflow: 'hidden',
+  },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 21,
+  },
+  heroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#303C21',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: '#26321E',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  heroBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 5,
+    backgroundColor: C.lime,
+  },
+  heroBadgeText: {
+    color: C.lime,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  heroTitle: {
+    color: C.white,
+    fontSize: 27,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+  },
+  heroTitleAccent: {
+    color: C.lime,
+    fontSize: 27,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+  },
+  heroDescription: {
+    color: '#B3BCB5',
+    fontSize: 12,
+    lineHeight: 19,
+    marginTop: 11,
+    maxWidth: 310,
+  },
+  heroFooter: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 13,
+    borderTopWidth: 1,
+    borderTopColor: '#354326',
+    marginTop: 18,
+    paddingTop: 13,
+  },
+  heroFooterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  heroFooterText: {
+    color: '#D3D9D2',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 5,
+  },
+  sectionTitle: {
+    color: C.white,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  sectionSubtitle: {
+    color: C.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 9,
+  },
+  metricCard: {
+    width: '48%',
+    flexGrow: 1,
+    minWidth: 135,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 17,
+    padding: 13,
+  },
+  metricTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 13,
+  },
+  metricIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: C.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 5,
+    backgroundColor: '#586164',
+  },
+  metricValue: {
+    color: C.white,
+    fontSize: 25,
+    fontWeight: '900',
+  },
+  metricLabel: {
+    color: '#D9DEDE',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 3,
+  },
+  metricCaption: {
+    color: C.muted,
+    fontSize: 9,
+    marginTop: 6,
+  },
+  performanceCard: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 19,
+    padding: 16,
+  },
+  performanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  performanceEyebrow: {
+    color: C.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+  performanceValue: {
+    color: C.white,
+    fontSize: 30,
+    fontWeight: '900',
+    marginTop: 7,
+  },
+  performanceHint: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 4,
+    maxWidth: 235,
+  },
+  performanceIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 14,
+    backgroundColor: '#303A1D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  performanceDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginVertical: 15,
+  },
+  performanceStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  performanceStat: {
+    flex: 1,
+    gap: 5,
+  },
+  performanceStatValue: {
+    color: C.white,
+    fontSize: 19,
+    fontWeight: '900',
+  },
+  performanceStatLabel: {
+    color: C.muted,
+    fontSize: 10,
+  },
+  verticalDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: C.border,
+    marginHorizontal: 16,
+  },
+  commissionCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#171D19',
+    borderWidth: 1,
+    borderColor: '#354326',
+    borderRadius: 17,
+    padding: 15,
+  },
+  commissionIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 13,
+    backgroundColor: '#303A1D',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commissionCopy: {
+    flex: 1,
+  },
+  commissionTitle: {
+    color: C.white,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  commissionRate: {
+    color: C.lime,
+    fontSize: 23,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  commissionDescription: {
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 16,
+    marginTop: 4,
+  },
+  inboxCount: {
+    backgroundColor: C.soft,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  inboxCountText: {
+    color: C.muted,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  searchBox: {
+    minHeight: 49,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 15,
+    paddingHorizontal: 13,
+  },
+  searchInput: {
+    flex: 1,
+    color: C.white,
+    paddingVertical: 12,
+    fontSize: 12,
+  },
+  clearSearch: {
+    color: C.lime,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  filterStrip: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 24,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    backgroundColor: C.card,
+  },
+  filterChipActive: {
+    backgroundColor: C.lime,
+    borderColor: C.lime,
+  },
+  filterText: {
+    color: C.muted,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  filterTextActive: {
+    color: C.bg,
+  },
+  emptyOrdersCard: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 21,
+    padding: 18,
+    alignItems: 'center',
+  },
+  emptyIllustration: {
+    width: 100,
+    height: 91,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 13,
+  },
+  emptyIconCircle: {
+    width: 68,
+    height: 68,
+    borderRadius: 24,
+    backgroundColor: '#303A1D',
+    borderWidth: 1,
+    borderColor: '#50652C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptySparkOne: {
+    position: 'absolute',
+    top: 9,
+    right: 12,
+    width: 8,
+    height: 8,
+    borderRadius: 5,
+    backgroundColor: C.lime,
+  },
+  emptySparkTwo: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    width: 5,
+    height: 5,
+    borderRadius: 5,
+    backgroundColor: C.green,
+  },
+  emptyTitle: {
+    color: C.white,
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  emptyDescription: {
+    color: C.muted,
+    fontSize: 11,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptyDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    alignSelf: 'stretch',
+    marginVertical: 17,
+  },
+  emptyFeature: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    gap: 10,
+    marginBottom: 12,
+  },
+  emptyFeatureIcon: {
+    width: 27,
+    height: 27,
+    borderRadius: 9,
+    backgroundColor: C.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyFeatureText: {
+    color: '#D9DEDE',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  connectionNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: C.soft,
+    borderRadius: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    alignSelf: 'stretch',
+    marginTop: 5,
+  },
+  connectionDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 5,
+    backgroundColor: C.amber,
+  },
+  connectionText: {
+    color: C.muted,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  operationsCard: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+  },
+  operationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingVertical: 15,
+  },
+  operationIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 13,
+    backgroundColor: C.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  operationCopy: {
+    flex: 1,
+  },
+  operationTitle: {
+    color: C.white,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  operationDescription: {
+    color: C.muted,
+    fontSize: 9,
+    lineHeight: 14,
+    marginTop: 4,
+  },
+  operationDivider: {
+    height: 1,
+    backgroundColor: C.border,
+  },
+  footerNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    paddingHorizontal: 2,
+    marginTop: 2,
+  },
+  footerText: {
+    flex: 1,
+    color: C.muted,
+    fontSize: 10,
+    lineHeight: 16,
+  },
+});

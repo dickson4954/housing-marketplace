@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import {
   ArrowLeft,
   CalendarDays,
@@ -34,6 +33,7 @@ import {
   isValidDateString,
 } from '@/components/DateTimeFields';
 import { API_BASE_URL, API_ENDPOINTS } from '@/config/api';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 const COLORS = {
   background: '#0B0F10',
@@ -182,7 +182,7 @@ export default function StayInspectionScreen(): React.JSX.Element {
     setSubmitting(true);
 
     try {
-      const token = await SecureStore.getItemAsync('makazii_customer_token');
+      const token = await getMarketplaceSessionToken();
 
       if (!token) {
         Alert.alert(
@@ -238,7 +238,7 @@ export default function StayInspectionScreen(): React.JSX.Element {
       ) {
         Alert.alert(
           'Inspection already exists',
-          `This inspection is currently ${inspection.status.replace(/_/g, ' ')}. Check your Visits screen for its status. No new payment was initiated.`,
+          `This inspection is currently ${inspection.status.replace(/_/g, ' ')}. Check your My Activity screen for its status. No new payment was initiated.`,
         );
         return;
       }
@@ -301,7 +301,7 @@ export default function StayInspectionScreen(): React.JSX.Element {
         ) {
           throw new Error(
             statusPayload.message ||
-              'Could not verify payment. Do not pay again; check your Visits screen.',
+              'Could not verify payment. Do not pay again; check your My Activity screen.',
           );
         }
 
@@ -327,7 +327,7 @@ export default function StayInspectionScreen(): React.JSX.Element {
       } else {
         Alert.alert(
           'Confirmation pending',
-          'The M-Pesa request was sent, but payment confirmation has not arrived. Do not pay again. Check your M-Pesa messages and Visits screen.',
+          'The M-Pesa request was sent, but payment confirmation has not arrived. Do not pay again. Check your M-Pesa messages and My Activity screen.',
         );
       }
     } catch (error) {

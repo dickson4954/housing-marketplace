@@ -328,11 +328,11 @@ export default function VisitsScreen() {
 
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>
-              My Visits
+              My Activity
             </Text>
 
             <Text style={styles.headerSubtitle}>
-              Manage your accommodation bookings and property visits
+              Track your bookings, property viewings and marketplace activity
             </Text>
           </View>
 

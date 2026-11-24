@@ -255,7 +255,7 @@ export default function CustomerSignupScreen() {
             <Text style={styles.description}>
               Create your MAKAZII account to keep
               your home search, shortlist and
-              visits connected.
+              marketplace activity connected.
             </Text>
           </View>
 

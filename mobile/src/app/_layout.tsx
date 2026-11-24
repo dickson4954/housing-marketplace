@@ -23,7 +23,9 @@ function AppContent() {
 
   const isAdminPage = pathname.startsWith('/admin');
   const isMarketerPage = pathname.startsWith('/marketer');
+  const isLandlordPage = pathname.startsWith('/landlord');
   const isOnboardingPage = pathname.startsWith('/onboarding');
+  const isBusinessPage = pathname.startsWith('/business');
   const isInitialPage = pathname === '/';
   const isStayBookingPage = pathname.startsWith('/stay-booking');
   const isInspectionPage = pathname.startsWith('/inspection');
@@ -34,7 +36,9 @@ function AppContent() {
   const showBottomTabs =
     !isAdminPage &&
     !isMarketerPage &&
+    !isLandlordPage &&
     !isOnboardingPage &&
+    !isBusinessPage &&
     !isInitialPage &&
     !isTransactionPage;
 

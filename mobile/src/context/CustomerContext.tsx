@@ -11,6 +11,15 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import {
+  clearMarketplaceSessionSource,
+  getMarketplaceSessionSource,
+  getMarketplaceSessionToken,
+  getTokenForMarketplaceSource,
+  setMarketplaceSessionSource,
+  type MarketplaceSessionSource,
+} from '@/lib/marketplaceSession';
+
+import {
   API_BASE_URL,
   API_ENDPOINTS,
 } from '@/config/api';
@@ -80,6 +89,10 @@ type CustomerContextValue = {
 
   isAuthenticated: boolean;
 
+  marketplaceSessionSource: MarketplaceSessionSource | null;
+
+  isBusinessMarketplaceSession: boolean;
+
   isLoading: boolean;
 
   signUp: (
@@ -117,6 +130,13 @@ type CustomerContextValue = {
   }>;
 
   logout: () => Promise<void>;
+
+  activateMarketplaceSession: (
+    source: MarketplaceSessionSource
+  ) => Promise<{
+    success: boolean;
+    message: string;
+  }>;
 
   updateProfile: (
     changes: Partial<
@@ -217,27 +237,7 @@ function mapBackendUser(
 }
 
 async function getStoredToken(): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      if (
-        typeof window === 'undefined' ||
-        !window.localStorage
-      ) {
-        return null;
-      }
-
-      return window.localStorage.getItem(TOKEN_KEY);
-    }
-
-    return await SecureStore.getItemAsync(TOKEN_KEY);
-  } catch (error) {
-    console.error(
-      'Unable to read customer token:',
-      error
-    );
-
-    return null;
-  }
+  return getMarketplaceSessionToken();
 }
 
 async function saveToken(token: string): Promise<void> {
@@ -280,6 +280,16 @@ async function removeToken(): Promise<void> {
   );
 }
 
+class ApiRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+  }
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -314,9 +324,18 @@ async function apiRequest<T>(
   try {
     data = (await response.json()) as T;
   } catch {
-    throw new Error(
-      'The server returned an invalid response.'
+    throw new ApiRequestError(
+      'The server returned an invalid response.',
+      response.status
     );
+  }
+
+  if (!response.ok) {
+    const message =
+      (data as { message?: string } | null)?.message ||
+      `The request failed (${response.status}).`;
+
+    throw new ApiRequestError(message, response.status);
   }
 
   return data;
@@ -338,6 +357,9 @@ export function CustomerProvider({
   const [currentCustomer, setCurrentCustomer] =
     useState<Customer | null>(null);
 
+  const [marketplaceSessionSource, setMarketplaceSessionSourceState] =
+    useState<MarketplaceSessionSource | null>(null);
+
   const [isReturningCustomer, setIsReturningCustomer] =
     useState(false);
 
@@ -346,48 +368,66 @@ export function CustomerProvider({
 
   const restoreSession = useCallback(
     async () => {
+      let source: MarketplaceSessionSource | null = null;
+
       try {
-        const token =
-          await getStoredToken();
+        source = await getMarketplaceSessionSource();
+
+        if (!source) {
+          setMarketplaceSessionSourceState(null);
+          setCurrentCustomer(null);
+          return;
+        }
+
+        const token = await getTokenForMarketplaceSource(source);
 
         if (!token) {
+          await clearMarketplaceSessionSource(source);
+          setMarketplaceSessionSourceState(null);
+          setCurrentCustomer(null);
           return;
         }
 
-        const response =
-          await apiRequest<AuthResponse>(
-            API_ENDPOINTS.me,
-            {
-              method: 'GET',
-            },
-            token
-          );
+        const response = await apiRequest<AuthResponse>(
+          API_ENDPOINTS.me,
+          { method: 'GET' },
+          token
+        );
 
-        if (
-          !response.success ||
-          !response.data?.user
-        ) {
-          await removeToken();
+        if (!response.success || !response.data?.user) {
+          setMarketplaceSessionSourceState(source);
           return;
         }
 
-        const customer =
-          mapBackendUser(
-            response.data.user,
-            currentCustomer
-          );
+        const customer = mapBackendUser(
+          response.data.user,
+          currentCustomer
+        );
 
+        setMarketplaceSessionSourceState(source);
         setCurrentCustomer(customer);
         setCustomers([customer]);
         setIsReturningCustomer(true);
       } catch (error) {
-        console.error(
-          'Customer session restore error:',
-          error
-        );
+        console.error('Marketplace session restore error:', error);
 
-        await removeToken();
-        setCurrentCustomer(null);
+        if (
+          error instanceof ApiRequestError &&
+          error.status === 401 &&
+          source
+        ) {
+          // Invalidate only the selected Marketplace identity.
+          if (source === 'customer') {
+            await removeToken();
+          }
+
+          await clearMarketplaceSessionSource(source);
+          setMarketplaceSessionSourceState(null);
+          setCurrentCustomer(null);
+          setCustomers([]);
+        }
+
+        // Network errors and server errors do not erase stored credentials.
       } finally {
         setIsLoading(false);
       }
@@ -738,6 +778,8 @@ export function CustomerProvider({
         await saveToken(
           response.data.token
         );
+        await setMarketplaceSessionSource('customer');
+        setMarketplaceSessionSourceState('customer');
 
         const previousCustomer =
           currentCustomer;
@@ -797,10 +839,87 @@ export function CustomerProvider({
     [currentCustomer]
   );
 
+  const activateMarketplaceSession = useCallback(
+    async (
+      source: MarketplaceSessionSource
+    ): Promise<{
+      success: boolean;
+      message: string;
+    }> => {
+      try {
+        // Select an existing token; never create or replace credentials.
+        const token = await getTokenForMarketplaceSource(source);
+
+        if (!token) {
+          return {
+            success: false,
+            message:
+              source === 'business'
+                ? 'Your business session is unavailable. Please sign in again.'
+                : 'Your customer session is unavailable. Please sign in again.',
+          };
+        }
+
+        // Validate the selected identity with the backend before switching.
+        const response = await apiRequest<AuthResponse>(
+          API_ENDPOINTS.me,
+          { method: 'GET' },
+          token
+        );
+
+        if (!response.success || !response.data?.user) {
+          return {
+            success: false,
+            message:
+              response.message ||
+              'Unable to verify this account. Please try again.',
+          };
+        }
+
+        const customer = mapBackendUser(
+          response.data.user,
+          currentCustomer
+        );
+
+        // This changes only the Marketplace identity selector.
+        await setMarketplaceSessionSource(source);
+
+        setMarketplaceSessionSourceState(source);
+        setCurrentCustomer(customer);
+        setCustomers([customer]);
+        setIsReturningCustomer(true);
+
+        return {
+          success: true,
+          message: 'Marketplace account switched successfully.',
+        };
+      } catch (error) {
+        console.error('Marketplace account switch error:', error);
+
+        return {
+          success: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Unable to switch Marketplace account.',
+        };
+      }
+    },
+    [currentCustomer]
+  );
+
   const logout = useCallback(
     async () => {
-      await removeToken();
+      const source = await getMarketplaceSessionSource();
 
+      if (source === 'customer') {
+        await removeToken();
+      }
+
+      // Business-backed Marketplace logout clears only the mode marker.
+      await clearMarketplaceSessionSource(source ?? undefined);
+
+      setMarketplaceSessionSourceState(null);
       setCurrentCustomer(null);
       setCustomers([]);
       setIsReturningCustomer(false);
@@ -953,12 +1072,16 @@ export function CustomerProvider({
         currentCustomer,
         isAuthenticated:
           currentCustomer !== null,
+        marketplaceSessionSource,
+        isBusinessMarketplaceSession:
+          marketplaceSessionSource === 'business',
         isLoading,
         signUp,
         verifyEmail,
         resendVerification,
         login,
         logout,
+        activateMarketplaceSession,
         updateProfile,
         getCustomerById,
         getCurrentGreeting,
@@ -967,12 +1090,14 @@ export function CustomerProvider({
       [
         customers,
         currentCustomer,
+        marketplaceSessionSource,
         isLoading,
         signUp,
         verifyEmail,
         resendVerification,
         login,
         logout,
+        activateMarketplaceSession,
         updateProfile,
         getCustomerById,
         getCurrentGreeting,

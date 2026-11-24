@@ -141,7 +141,7 @@ export default function CustomerWelcomeScreen() {
           </Text>
 
           <Text style={styles.bottomText}>
-            Save properties, manage your visits and
+            Save properties, manage your activity and
             keep your MAKAZII activity connected.
           </Text>
 

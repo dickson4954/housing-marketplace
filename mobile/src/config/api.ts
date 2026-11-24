@@ -16,6 +16,20 @@ export const API_ENDPOINTS = {
 
   customerStayBookings: "/stay-bookings",
 
+  /* =======================================================
+  CUSTOMER NOTIFICATIONS
+  ======================================================= */
+
+  customerNotifications: "/notifications",
+
+  customerNotificationUnreadCount: "/notifications/unread-count",
+
+  customerNotificationReadAll: "/notifications/read-all",
+
+  customerNotificationRead: (notificationId: string) =>
+    `/notifications/${encodeURIComponent(notificationId)}/read`,
+
+
   createStayBooking: "/stay-bookings",
 
   initiateStayBookingPayment: (bookingId: string) =>

@@ -29,12 +29,12 @@ import {
   Wallet,
   X,
 } from 'lucide-react-native';
-import * as SecureStore from 'expo-secure-store';
 
 import {
   API_BASE_URL,
   API_ENDPOINTS,
 } from '@/config/api';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 const COLORS = {
   background: '#0B0F10',
@@ -864,9 +864,7 @@ export default function ViewingScreen(): React.JSX.Element {
 
       try {
         const token =
-          await SecureStore.getItemAsync(
-            'makazii_customer_token',
-          );
+          await getMarketplaceSessionToken();
 
         if (!token) {
           setProcessingPayment(false);
@@ -1040,7 +1038,7 @@ export default function ViewingScreen(): React.JSX.Element {
           ) {
             throw new Error(
               statusPayload.message ||
-                'We could not verify the payment status. Do not pay again; check your Visits screen or contact support.',
+                'We could not verify the payment status. Do not pay again; check your My Activity screen or contact support.',
             );
           }
 
@@ -1069,7 +1067,7 @@ export default function ViewingScreen(): React.JSX.Element {
 
           Alert.alert(
             'Payment confirmation pending',
-            'The M-Pesa request was sent, but confirmation has not arrived yet. Do not pay again. Check your M-Pesa messages and the Visits screen before taking further action.',
+            'The M-Pesa request was sent, but confirmation has not arrived yet. Do not pay again. Check your M-Pesa messages and the My Activity screen before taking further action.',
           );
 
           return;
@@ -1605,7 +1603,7 @@ export default function ViewingScreen(): React.JSX.Element {
                     styles.visitsButtonText
                   }
                 >
-                  Go to My Visits
+                  Go to My Activity
                 </Text>
 
                 <ChevronRight

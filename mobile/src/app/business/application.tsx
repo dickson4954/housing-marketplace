@@ -1,0 +1,1727 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
+import {
+  AlertCircle,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Clock3,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  ShieldX,
+} from 'lucide-react-native';
+
+import {
+  clearBusinessOwnerToken,
+  getBusinessOwnerStatus,
+  getApprovedBusinessWorkspaces,
+  type ApprovedBusinessWorkspace,
+  type BusinessOwnerStatus,
+  type OwnerBusiness,
+  type OwnerPrimaryLocation,
+  type BusinessLocationInput,
+  type BusinessLocationEvidenceUpload,
+  correctBusinessLocation,
+} from '@/lib/businessOwnerApi';
+
+import BusinessLocationForm, {
+  validateBusinessLocationForm,
+} from '@/components/BusinessLocationForm';
+
+const C = {
+  background: '#0B0F10',
+  card: '#14191B',
+  cardSoft: '#181E20',
+  lime: '#D7FF5F',
+  white: '#FFFFFF',
+  muted: '#9CA5A7',
+  border: '#252C2E',
+  danger: '#FF6B6B',
+  green: '#73D99A',
+  amber: '#F4C66A',
+};
+
+function readableStatus(value?: string | null) {
+  if (!value) return 'NOT AVAILABLE';
+
+  return value
+    .replace(/_/g, ' ')
+    .toUpperCase();
+}
+
+function statusColor(value?: string | null) {
+  const status = value?.toUpperCase();
+
+  if (
+    status === 'APPROVED' ||
+    status === 'VERIFIED' ||
+    status === 'ACTIVE'
+  ) {
+    return C.green;
+  }
+
+  if (
+    status === 'REJECTED' ||
+    status === 'SUSPENDED'
+  ) {
+    return C.danger;
+  }
+
+  if (
+    status === 'ACTION_REQUIRED' ||
+    status === 'REVIEW'
+  ) {
+    return C.amber;
+  }
+
+  return C.lime;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return 'Not yet reviewed';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return 'Date unavailable';
+
+  return date.toLocaleDateString('en-KE', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function StatusPill({ value }: { value?: string | null }) {
+  const color = statusColor(value);
+
+  return (
+    <View
+      style={[
+        styles.statusPill,
+        {
+          borderColor: `${color}55`,
+          backgroundColor: `${color}12`,
+        },
+      ]}
+    >
+      <View style={[styles.statusDot, { backgroundColor: color }]} />
+      <Text style={[styles.statusText, { color }]}>
+        {readableStatus(value)}
+      </Text>
+    </View>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+}
+
+
+function toBusinessLocationInput(
+  location: OwnerPrimaryLocation,
+): BusinessLocationInput {
+  return {
+    name: location.name,
+    locationType: location.locationType,
+    countyId: location.countyId,
+    constituencyId: location.constituencyId,
+    wardId: location.wardId,
+    placeId: location.placeId,
+    locality: location.locality || '',
+    street: location.street || '',
+    building: location.building || '',
+    floor: location.floor || '',
+    unit: location.unit || '',
+    addressLine1: location.addressLine1 || '',
+    addressLine2: location.addressLine2 || '',
+    directions: location.directions || '',
+    postalCode: location.postalCode || '',
+    addressPinLatitude: location.addressPinLatitude ?? null,
+    addressPinLongitude: location.addressPinLongitude ?? null,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    gpsConsent: location.gpsConsent,
+    isPubliclyDiscoverable: location.isPubliclyDiscoverable,
+    publicLocationLabel: location.publicLocationLabel || '',
+  };
+}
+
+function OwnerPremisesCorrection({
+  businessId,
+  location,
+  onSubmitted,
+}: {
+  businessId: string;
+  location?: OwnerPrimaryLocation;
+  onSubmitted: () => Promise<void>;
+}) {
+  const [formOpen, setFormOpen] = useState(false);
+  const [value, setValue] = useState<BusinessLocationInput | null>(
+    location ? toBusinessLocationInput(location) : null,
+  );
+  const [evidence, setEvidence] = useState<BusinessLocationEvidenceUpload[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+
+  useEffect(() => {
+    setValue(location ? toBusinessLocationInput(location) : null);
+    setEvidence([]);
+    setFormError('');
+    setFormSuccess('');
+  }, [location?.id, location?.updatedAt]);
+
+  if (!location) {
+    return (
+      <View style={correctionStyles.panel}>
+        <Text style={correctionStyles.heading}>PRIMARY OPERATING PREMISES</Text>
+        <Text style={correctionStyles.muted}>
+          No primary premises record was returned for this business. Please refresh your application or contact support if this continues.
+        </Text>
+      </View>
+    );
+  }
+
+  const activeLocation = location;
+  const locationId = activeLocation.id;
+
+  const latestReview = activeLocation.reviews?.[0];
+  const locationStatus = activeLocation.status?.toUpperCase();
+  const reviewAction = latestReview?.action?.toUpperCase();
+  const reviewTarget = latestReview?.toStatus?.toUpperCase();
+
+  const canCorrect =
+    locationStatus === 'ACTION_REQUIRED' ||
+    (
+      locationStatus === 'PENDING_VERIFICATION' &&
+      reviewAction === 'REOPENED' &&
+      reviewTarget === 'PENDING_VERIFICATION'
+    );
+
+  const addressParts = [
+    location.unit,
+    location.building,
+    location.street,
+    location.locality,
+    location.ward?.name,
+    location.constituency?.name,
+    location.county?.name,
+  ].filter(Boolean);
+
+  async function handleSubmit() {
+    if (!value || submitting) return;
+
+    const validationError = validateBusinessLocationForm(value, evidence);
+    if (validationError) {
+      setFormError(validationError);
+      setFormSuccess('');
+      return;
+    }
+
+    setSubmitting(true);
+    setFormError('');
+    setFormSuccess('');
+
+    try {
+      const result = await correctBusinessLocation(
+        businessId,
+        locationId,
+        value,
+        evidence,
+      );
+
+      setFormSuccess(
+        result.message || 'Your premises correction has been submitted for review.',
+      );
+      setFormOpen(false);
+      setEvidence([]);
+      await onSubmitted();
+    } catch (error) {
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to submit your premises correction. Please try again.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <View style={correctionStyles.panel}>
+      <View style={correctionStyles.topRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={correctionStyles.heading}>PRIMARY OPERATING PREMISES</Text>
+          <Text style={correctionStyles.locationName}>{location.name}</Text>
+        </View>
+        <View
+          style={[
+            correctionStyles.statusPill,
+            {
+              borderColor:
+                locationStatus === 'VERIFIED' ? C.green :
+                locationStatus === 'ACTION_REQUIRED' ? C.amber : C.border,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              correctionStyles.statusText,
+              {
+                color:
+                  locationStatus === 'VERIFIED' ? C.green :
+                  locationStatus === 'ACTION_REQUIRED' ? C.amber : C.lime,
+              },
+            ]}
+          >
+            {readableStatus(location.status)}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={correctionStyles.muted}>
+        {addressParts.length ? addressParts.join(', ') : 'No structured address provided.'}
+      </Text>
+
+      {location.publicLocationLabel ? (
+        <Text style={correctionStyles.muted}>
+          Public location label: {location.publicLocationLabel}
+        </Text>
+      ) : null}
+
+      {latestReview?.notes ? (
+        <View style={correctionStyles.reviewBox}>
+          <Text style={correctionStyles.reviewLabel}>LATEST PREMISES REVIEW</Text>
+          <Text style={correctionStyles.reviewText}>{latestReview.notes}</Text>
+          <Text style={correctionStyles.reviewDate}>
+            {formatDate(latestReview.createdAt)}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={correctionStyles.evidenceHeader}>
+        <Text style={correctionStyles.evidenceTitle}>
+          SUBMITTED EVIDENCE ({location.evidence?.length || 0})
+        </Text>
+      </View>
+
+      {location.evidence?.length ? (
+        location.evidence.map(item => (
+          <View key={item.id} style={correctionStyles.evidenceRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={correctionStyles.evidenceName}>
+                {item.originalName || readableStatus(item.evidenceType)}
+              </Text>
+              <Text style={correctionStyles.evidenceMeta}>
+                {readableStatus(item.evidenceType)} · {formatDate(item.createdAt)}
+              </Text>
+            </View>
+            <Text
+              style={[
+                correctionStyles.evidenceStatus,
+                { color: statusColor(item.status) },
+              ]}
+            >
+              {readableStatus(item.status)}
+            </Text>
+          </View>
+        ))
+      ) : (
+        <Text style={correctionStyles.muted}>No evidence records are available.</Text>
+      )}
+
+      {formSuccess ? (
+        <View style={correctionStyles.successBox}>
+          <CheckCircle2 size={17} color={C.green} />
+          <Text style={correctionStyles.successText}>{formSuccess}</Text>
+        </View>
+      ) : null}
+
+      {canCorrect ? (
+        <>
+          <View style={correctionStyles.correctionNotice}>
+            <AlertCircle size={17} color={C.amber} />
+            <Text style={correctionStyles.correctionNoticeText}>
+              Your premises need attention. Review the administrator's feedback, update the details and attach fresh supporting evidence.
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={() => {
+              setFormError('');
+              setFormSuccess('');
+              setFormOpen(open => !open);
+            }}
+            style={correctionStyles.toggleButton}
+          >
+            <Text style={correctionStyles.toggleButtonText}>
+              {formOpen ? 'CLOSE CORRECTION FORM' : 'UPDATE PREMISES DETAILS'}
+            </Text>
+            <ArrowRight size={17} color={C.background} />
+          </Pressable>
+
+          {formOpen && value ? (
+            <View style={correctionStyles.formContainer}>
+              <Text style={correctionStyles.formIntro}>
+                Update the operating location information below. Upload new evidence that addresses the review feedback. Your previous evidence remains in the review history.
+              </Text>
+
+              <BusinessLocationForm
+                value={value}
+                onChange={setValue}
+                evidence={evidence}
+                onEvidenceChange={setEvidence}
+              />
+
+              {formError ? (
+                <View style={correctionStyles.errorBox}>
+                  <AlertCircle size={17} color={C.danger} />
+                  <Text style={correctionStyles.errorText}>{formError}</Text>
+                </View>
+              ) : null}
+
+              <Pressable
+                disabled={submitting}
+                onPress={handleSubmit}
+                style={[
+                  correctionStyles.submitButton,
+                  submitting && { opacity: 0.55 },
+                ]}
+              >
+                {submitting ? (
+                  <ActivityIndicator color={C.background} />
+                ) : (
+                  <Text style={correctionStyles.submitButtonText}>
+                    RESUBMIT PREMISES FOR REVIEW
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <Text style={correctionStyles.muted}>
+          {locationStatus === 'VERIFIED'
+            ? `Verified ${formatDate(location.verifiedAt)}. No premises correction is currently required.`
+            : 'Premises corrections are unavailable until the administrator requests changes or reopens this premises review.'}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+const correctionStyles = StyleSheet.create({
+  panel: {
+    marginTop: 16,
+    padding: 15,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.cardSoft,
+    gap: 12,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  heading: {
+    color: C.muted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  locationName: {
+    color: C.white,
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 5,
+  },
+  statusPill: {
+    borderWidth: 1,
+    borderRadius: 30,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  statusText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  muted: {
+    color: C.muted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  reviewBox: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.amber,
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+  },
+  reviewLabel: {
+    color: C.amber,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  reviewText: {
+    color: C.white,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  reviewDate: {
+    color: C.muted,
+    fontSize: 10,
+  },
+  evidenceHeader: {
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingTop: 11,
+  },
+  evidenceTitle: {
+    color: C.muted,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  evidenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  evidenceName: {
+    color: C.white,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  evidenceMeta: {
+    color: C.muted,
+    fontSize: 10,
+    marginTop: 3,
+  },
+  evidenceStatus: {
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  correctionNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    padding: 11,
+    borderRadius: 11,
+    backgroundColor: C.card,
+  },
+  correctionNoticeText: {
+    flex: 1,
+    color: C.amber,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  toggleButton: {
+    minHeight: 46,
+    borderRadius: 12,
+    backgroundColor: C.lime,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  toggleButtonText: {
+    color: C.background,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  formContainer: {
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingTop: 13,
+    gap: 13,
+  },
+  formIntro: {
+    color: C.muted,
+    fontSize: 12,
+    lineHeight: 19,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 11,
+    borderRadius: 10,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.danger,
+  },
+  errorText: {
+    flex: 1,
+    color: C.danger,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  successBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 11,
+    borderRadius: 10,
+    backgroundColor: C.card,
+  },
+  successText: {
+    flex: 1,
+    color: C.green,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  submitButton: {
+    minHeight: 49,
+    borderRadius: 12,
+    backgroundColor: C.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  submitButtonText: {
+    color: C.background,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.45,
+    textAlign: 'center',
+  },
+});
+
+
+function BusinessCard({ business, onSubmitted }: { business: OwnerBusiness; onSubmitted: () => Promise<void> }) {
+  const application = business.application;
+
+  const approved =
+    application?.status?.toUpperCase() === 'APPROVED';
+
+  const active = business.isActive;
+
+  return (
+    <View style={styles.businessCard}>
+      <View style={styles.businessHeader}>
+        <View style={styles.businessIcon}>
+          <Building2 size={21} color={C.lime} />
+        </View>
+
+        <View style={styles.businessHeading}>
+          <Text style={styles.businessName}>
+            {business.name}
+          </Text>
+          <Text style={styles.businessCategory}>
+            {business.categoryLabel || business.category}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.businessStatusRow}>
+        <View style={styles.statusColumn}>
+          <Text style={styles.smallLabel}>APPLICATION</Text>
+          <StatusPill value={application?.status || 'PENDING'} />
+        </View>
+
+        <View style={styles.statusColumn}>
+          <Text style={styles.smallLabel}>BUSINESS</Text>
+          <StatusPill value={active ? 'ACTIVE' : 'INACTIVE'} />
+        </View>
+      </View>
+
+      <View style={styles.separator} />
+
+      <InfoRow
+        label="Submitted"
+        value={formatDate(application?.submittedAt)}
+      />
+
+      <InfoRow
+        label="Last reviewed"
+        value={formatDate(application?.reviewedAt)}
+      />
+
+      {application?.actionRequired ? (
+        <View style={styles.actionNotice}>
+          <AlertCircle size={17} color={C.amber} />
+          <View style={styles.noticeContent}>
+            <Text style={styles.actionTitle}>
+              Action required
+            </Text>
+            <Text style={styles.actionText}>
+              {application.actionRequired}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {application?.reviewNotes ? (
+        <View style={styles.reviewNotes}>
+          <Text style={styles.notesLabel}>
+            ADMIN REVIEW NOTES
+          </Text>
+          <Text style={styles.notesText}>
+            {application.reviewNotes}
+          </Text>
+        </View>
+      ) : null}
+
+      <OwnerPremisesCorrection
+        businessId={business.id}
+        location={business.locations?.find(item => item.isPrimary) || business.locations?.[0]}
+        onSubmitted={onSubmitted}
+      />
+
+      {approved && active ? (
+        <View style={styles.approvedNotice}>
+          <CheckCircle2 size={17} color={C.green} />
+          <Text style={styles.approvedText}>
+            This business has been approved and is marked active.
+            Operational access is still subject to the required
+            membership and access checks.
+          </Text>
+        </View>
+      ) : null}
+
+      {application?.status?.toUpperCase() === 'REJECTED' ? (
+        <View style={styles.rejectedNotice}>
+          <ShieldX size={17} color={C.danger} />
+          <Text style={styles.rejectedText}>
+            This business application was not approved.
+            Review the administrator's notes above.
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export default function BusinessApplicationScreen() {
+  const params = useLocalSearchParams<{
+    ownerProfile?: string;
+  }>();
+  const hasOwnerProfile = params.ownerProfile !== '0';
+
+  const [application, setApplication] =
+    useState<BusinessOwnerStatus | null>(null);
+  const [workspaces, setWorkspaces] =
+    useState<ApprovedBusinessWorkspace[]>([]);
+  const [workspaceError, setWorkspaceError] = useState("");
+  const [openingBusinessId, setOpeningBusinessId] = useState<string | null>(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [error, setError] = useState('');
+
+  const loadApplication = useCallback(async () => {
+    setError('');
+    setWorkspaceError('');
+
+    try {
+      // Owner application data is optional for membership-only accounts.
+      if (hasOwnerProfile) {
+        try {
+          const result = await getBusinessOwnerStatus();
+          setApplication(result);
+        } catch (ownerErr) {
+          const message =
+            ownerErr instanceof Error
+              ? ownerErr.message
+              : 'Unable to load your owner application.';
+
+          setApplication(null);
+          setError(message);
+
+          if (
+            message.toLowerCase().includes('sign in') ||
+            message.toLowerCase().includes('unauthorized')
+          ) {
+            await clearBusinessOwnerToken();
+            router.replace('/business/login');
+            return;
+          }
+        }
+      } else {
+        setApplication(null);
+      }
+
+      // Owners and active business members share this workspace list.
+      try {
+        const approvedWorkspaces = await getApprovedBusinessWorkspaces();
+        setWorkspaces(approvedWorkspaces);
+      } catch (workspaceErr) {
+        const message =
+          workspaceErr instanceof Error
+            ? workspaceErr.message
+            : 'Unable to retrieve approved workspaces.';
+
+        setWorkspaces([]);
+        setWorkspaceError(message);
+
+        if (
+          message.toLowerCase().includes('sign in') ||
+          message.toLowerCase().includes('unauthorized')
+        ) {
+          await clearBusinessOwnerToken();
+          router.replace('/business/login');
+        }
+      }
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [hasOwnerProfile]);
+
+  useEffect(() => {
+    void loadApplication();
+  }, [loadApplication]);
+
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    await loadApplication();
+  }
+
+  async function handleSignOut() {
+    setIsSigningOut(true);
+
+    try {
+      await clearBusinessOwnerToken();
+      router.replace('/business/login');
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
+
+  function handleOpenWorkspace(businessId: string) {
+    setOpeningBusinessId(businessId);
+
+    router.push({
+      pathname: '/business/workspace/[businessId]',
+      params: { businessId },
+    });
+
+    setOpeningBusinessId(null);
+  }
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={C.lime} />
+          <Text style={styles.loadingText}>
+            Loading your business access...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const ownerApproved =
+    application?.status?.toUpperCase() === 'APPROVED';
+
+  const identityVerified =
+    application?.idVerificationStatus?.toUpperCase() === 'VERIFIED';
+
+  const canAddBusiness = ownerApproved && identityVerified;
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" />
+
+      <View style={styles.topBar}>
+        <View>
+          <Text style={styles.topEyebrow}>
+            MAKAZII BUSINESS NETWORK
+          </Text>
+          <Text style={styles.topTitle}>
+            Application centre
+          </Text>
+        </View>
+
+        <Pressable
+          style={styles.signOutButton}
+          onPress={handleSignOut}
+          disabled={isSigningOut}
+        >
+          {isSigningOut ? (
+            <ActivityIndicator size="small" color={C.white} />
+          ) : (
+            <LogOut size={19} color={C.white} />
+          )}
+        </Pressable>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={C.lime}
+            colors={[C.lime]}
+            progressBackgroundColor={C.card}
+          />
+        }
+      >
+        <View style={styles.welcome}>
+          <Text style={styles.welcomeTitle}>
+            Your business journey.
+          </Text>
+          <Text style={styles.welcomeSubtitle}>
+            Access the business workspaces you own or are
+            authorized to manage. Owner applications appear here when applicable.
+          </Text>
+        </View>
+
+        {error ? (
+          <View style={styles.errorCard}>
+            <AlertCircle size={20} color={C.danger} />
+            <View style={styles.noticeContent}>
+              <Text style={styles.errorTitle}>
+                Unable to refresh application
+              </Text>
+              <Text style={styles.errorText}>{error}</Text>
+              <Pressable
+                style={styles.retryButton}
+                onPress={handleRefresh}
+              >
+                <RefreshCw size={15} color={C.lime} />
+                <Text style={styles.retryText}>Try again</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Your workspaces</Text>
+          <Text style={styles.sectionCaption}>
+            Operational access is granted separately for each approved business
+          </Text>
+        </View>
+
+        {workspaceError ? (
+          <View style={styles.errorCard}>
+            <AlertCircle size={19} color={C.amber} />
+            <View style={styles.noticeContent}>
+              <Text style={styles.errorTitle}>Workspace access unavailable</Text>
+              <Text style={styles.errorText}>{workspaceError}</Text>
+            </View>
+          </View>
+        ) : workspaces.length ? (
+          workspaces.map((workspace) => (
+            <View key={workspace.id} style={styles.workspaceCard}>
+              <View style={styles.workspaceIdentity}>
+                <View style={styles.businessIcon}>
+                  <Building2 size={21} color={C.lime} />
+                </View>
+                <View style={styles.businessHeading}>
+                  <Text style={styles.businessName}>{workspace.name}</Text>
+                  <Text style={styles.businessCategory}>
+                    {workspace.categoryLabel || workspace.category}
+                  </Text>
+                  <Text style={styles.workspaceRole}>
+                    {workspace.membershipRole.replace(/_/g, " ")}
+                  </Text>
+                </View>
+                <StatusPill value="APPROVED" />
+              </View>
+
+              <Pressable
+                style={styles.workspaceButton}
+                onPress={() => handleOpenWorkspace(workspace.id)}
+                disabled={openingBusinessId === workspace.id}
+              >
+                {openingBusinessId === workspace.id ? (
+                  <ActivityIndicator color={C.background} />
+                ) : (
+                  <>
+                    <Text style={styles.workspaceButtonText}>Open workspace</Text>
+                    <ArrowRight size={17} color={C.background} />
+                  </>
+                )}
+              </Pressable>
+            </View>
+          ))
+        ) : (
+          <View style={styles.workspaceEmpty}>
+            <ShieldCheck size={23} color={C.muted} />
+            <Text style={styles.workspaceEmptyTitle}>
+              No operational workspaces yet
+            </Text>
+            <Text style={styles.workspaceEmptyText}>
+              Workspaces appear here when your business access and the
+              relevant business approvals have been confirmed.
+            </Text>
+          </View>
+        )}
+
+        {application ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Owner application
+              </Text>
+              <Text style={styles.sectionCaption}>
+                Your personal business-owner approval
+              </Text>
+            </View>
+
+            <View style={styles.ownerCard}>
+              <View style={styles.ownerTop}>
+                <View style={styles.ownerIcon}>
+                  <ShieldCheck size={23} color={C.lime} />
+                </View>
+                <View style={styles.ownerHeading}>
+                  <Text style={styles.ownerTitle}>
+                    Business owner profile
+                  </Text>
+                  <Text style={styles.ownerDescription}>
+                    Your account-level review
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.ownerStatuses}>
+                <View style={styles.ownerStatusBlock}>
+                  <Text style={styles.smallLabel}>
+                    OWNER APPROVAL
+                  </Text>
+                  <StatusPill value={application.status} />
+                </View>
+
+                <View style={styles.ownerStatusBlock}>
+                  <Text style={styles.smallLabel}>
+                    NATIONAL ID
+                  </Text>
+                  <StatusPill
+                    value={application.idVerificationStatus}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.separator} />
+
+              <InfoRow
+                label="Application submitted"
+                value={formatDate(application.createdAt)}
+              />
+
+              {application.reviewNotes ? (
+                <View style={styles.reviewNotes}>
+                  <Text style={styles.notesLabel}>
+                    OWNER REVIEW NOTES
+                  </Text>
+                  <Text style={styles.notesText}>
+                    {application.reviewNotes}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Your businesses
+              </Text>
+              <Text style={styles.sectionCaption}>
+                Each business is reviewed independently
+              </Text>
+            </View>
+
+            {application.businesses?.length ? (
+              application.businesses.map((business) => (
+                <BusinessCard
+                  key={business.id}
+                  business={business}
+                  onSubmitted={loadApplication}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyCard}>
+                <Building2 size={27} color={C.muted} />
+                <Text style={styles.emptyTitle}>
+                  No businesses found
+                </Text>
+                <Text style={styles.emptyText}>
+                  Your submitted businesses will appear here.
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.eligibilityCard}>
+              <View style={styles.eligibilityIcon}>
+                {canAddBusiness ? (
+                  <CheckCircle2 size={22} color={C.green} />
+                ) : (
+                  <Clock3 size={22} color={C.amber} />
+                )}
+              </View>
+
+              <View style={styles.eligibilityCopy}>
+                <Text style={styles.eligibilityTitle}>
+                  {canAddBusiness
+                    ? 'Additional business registration unlocked'
+                    : 'Additional business registration locked'}
+                </Text>
+
+                <Text style={styles.eligibilityText}>
+                  {canAddBusiness
+                    ? 'Your owner application is approved and your National ID is verified. You are eligible to register another business under this account.'
+                    : 'You can register additional businesses after your owner application is approved and your National ID verification is complete.'}
+                </Text>
+              </View>
+            </View>
+
+            {canAddBusiness ? (
+              <Pressable
+                style={styles.addBusinessButton}
+                onPress={() => router.push('/business/register-business')}
+              >
+                <Building2 size={18} color={C.background} />
+                <Text style={styles.addBusinessButtonText}>
+                  Add another business
+                </Text>
+                <ArrowRight size={17} color={C.background} />
+              </Pressable>
+            ) : null}
+          </>
+        ) : null}
+
+        <Pressable
+          style={styles.refreshButton}
+          onPress={handleRefresh}
+          disabled={isRefreshing}
+        >
+          {isRefreshing ? (
+            <ActivityIndicator color={C.background} />
+          ) : (
+            <>
+              <RefreshCw size={17} color={C.background} />
+              <Text style={styles.refreshButtonText}>
+                Refresh application status
+              </Text>
+            </>
+          )}
+        </Pressable>
+
+        <View style={styles.footerNote}>
+          <ShieldCheck size={17} color={C.lime} />
+          <Text style={styles.footerText}>
+            Your application centre is separate from operational
+            business workspaces. Approval of one business does not
+            automatically approve your other businesses.
+          </Text>
+        </View>
+
+        <Pressable
+          style={styles.logoutLink}
+          onPress={handleSignOut}
+          disabled={isSigningOut}
+        >
+          <Text style={styles.logoutText}>
+            Sign out of Business
+          </Text>
+          <ArrowRight size={15} color={C.muted} />
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: C.background,
+  },
+  topBar: {
+    minHeight: 74,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  topEyebrow: {
+    color: C.lime,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  topTitle: {
+    color: C.white,
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  signOutButton: {
+    width: 43,
+    height: 43,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 42,
+  },
+  welcome: {
+    marginBottom: 28,
+  },
+  welcomeTitle: {
+    color: C.white,
+    fontSize: 27,
+    lineHeight: 34,
+    fontWeight: '900',
+    letterSpacing: -0.7,
+  },
+  welcomeSubtitle: {
+    color: C.muted,
+    fontSize: 13,
+    lineHeight: 21,
+    marginTop: 8,
+    maxWidth: 450,
+  },
+  sectionHeader: {
+    marginTop: 9,
+    marginBottom: 13,
+  },
+  sectionTitle: {
+    color: C.white,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  sectionCaption: {
+    color: C.muted,
+    fontSize: 12,
+    marginTop: 5,
+  },
+  workspaceCard: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 19,
+    padding: 15,
+    marginBottom: 12,
+  },
+  workspaceIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  workspaceRole: {
+    color: C.muted,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 5,
+  },
+  workspaceButton: {
+    minHeight: 47,
+    backgroundColor: C.lime,
+    borderRadius: 13,
+    marginTop: 15,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  workspaceButtonText: {
+    color: C.background,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  workspaceEmpty: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 18,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  workspaceEmptyTitle: {
+    color: C.white,
+    fontSize: 13,
+    fontWeight: '900',
+    marginTop: 10,
+  },
+  workspaceEmptyText: {
+    color: C.muted,
+    fontSize: 11,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 7,
+  },
+  ownerCard: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 21,
+    padding: 17,
+    marginBottom: 26,
+  },
+  ownerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  ownerIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ownerHeading: {
+    flex: 1,
+  },
+  ownerTitle: {
+    color: C.white,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  ownerDescription: {
+    color: C.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  ownerStatuses: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 22,
+  },
+  ownerStatusBlock: {
+    flex: 1,
+    minWidth: 130,
+    gap: 9,
+  },
+  smallLabel: {
+    color: C.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  statusPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 30,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    maxWidth: '100%',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.35,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: C.border,
+    marginVertical: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+  infoLabel: {
+    color: C.muted,
+    fontSize: 11,
+  },
+  infoValue: {
+    color: C.white,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  reviewNotes: {
+    backgroundColor: C.cardSoft,
+    borderRadius: 13,
+    padding: 13,
+    marginTop: 16,
+  },
+  notesLabel: {
+    color: C.lime,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginBottom: 7,
+  },
+  notesText: {
+    color: C.white,
+    fontSize: 12,
+    lineHeight: 19,
+  },
+  businessCard: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 21,
+    padding: 16,
+    marginBottom: 13,
+  },
+  businessHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  businessIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  businessHeading: {
+    flex: 1,
+  },
+  businessName: {
+    color: C.white,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  businessCategory: {
+    color: C.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  businessStatusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 13,
+    marginTop: 19,
+  },
+  statusColumn: {
+    flex: 1,
+    minWidth: 120,
+    gap: 8,
+  },
+  actionNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#282318',
+    borderWidth: 1,
+    borderColor: '#59482A',
+    borderRadius: 13,
+    padding: 12,
+    marginTop: 15,
+  },
+  noticeContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    color: C.amber,
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 5,
+  },
+  actionText: {
+    color: C.white,
+    fontSize: 12,
+    lineHeight: 19,
+  },
+  approvedNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    backgroundColor: '#15221A',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 15,
+  },
+  approvedText: {
+    flex: 1,
+    color: C.green,
+    fontSize: 11,
+    lineHeight: 18,
+  },
+  rejectedNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    backgroundColor: '#281719',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 15,
+  },
+  rejectedText: {
+    flex: 1,
+    color: C.danger,
+    fontSize: 11,
+    lineHeight: 18,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 19,
+    padding: 25,
+    marginBottom: 15,
+  },
+  emptyTitle: {
+    color: C.white,
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 12,
+  },
+  emptyText: {
+    color: C.muted,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  eligibilityCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 18,
+    padding: 15,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  eligibilityIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: C.cardSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eligibilityCopy: {
+    flex: 1,
+  },
+  eligibilityTitle: {
+    color: C.white,
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  eligibilityText: {
+    color: C.muted,
+    fontSize: 11,
+    lineHeight: 18,
+  },
+  errorCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: '#281719',
+    borderWidth: 1,
+    borderColor: '#593034',
+    borderRadius: 17,
+    padding: 15,
+    marginBottom: 22,
+  },
+  errorTitle: {
+    color: C.danger,
+    fontSize: 13,
+    fontWeight: '900',
+    marginBottom: 5,
+  },
+  errorText: {
+    color: C.white,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  retryText: {
+    color: C.lime,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  addBusinessButton: {
+    minHeight: 53,
+    borderRadius: 15,
+    backgroundColor: C.lime,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  addBusinessButtonText: {
+    color: C.background,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  refreshButton: {
+    minHeight: 53,
+    borderRadius: 15,
+    backgroundColor: C.lime,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+  },
+  refreshButtonText: {
+    color: C.background,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  footerNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 22,
+    paddingHorizontal: 5,
+  },
+  footerText: {
+    flex: 1,
+    color: C.muted,
+    fontSize: 11,
+    lineHeight: 18,
+  },
+  logoutLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 15,
+    marginTop: 12,
+  },
+  logoutText: {
+    color: C.muted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 15,
+    padding: 25,
+  },
+  loadingText: {
+    color: C.muted,
+    fontSize: 13,
+  },
+});
+
+export function ErrorBoundary({
+  error,
+  retry,
+}: {
+  error: Error;
+  retry: () => void;
+}) {
+  return (
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: '#0B0F10',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <StatusBar barStyle="light-content" />
+
+      <View
+        style={{
+          backgroundColor: '#14191B',
+          borderColor: '#FF6B6B',
+          borderWidth: 1,
+          borderRadius: 18,
+          padding: 20,
+        }}
+      >
+        <Text
+          style={{
+            color: '#FF6B6B',
+            fontSize: 17,
+            fontWeight: '900',
+            marginBottom: 12,
+          }}
+        >
+          Business application error
+        </Text>
+
+        <Text
+          selectable
+          style={{
+            color: '#FFFFFF',
+            fontSize: 13,
+            lineHeight: 21,
+          }}
+        >
+          {error?.message || 'An unknown application error occurred.'}
+        </Text>
+
+        <Pressable
+          onPress={retry}
+          style={{
+            backgroundColor: '#D7FF5F',
+            padding: 15,
+            borderRadius: 12,
+            marginTop: 20,
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: '#0B0F10', fontWeight: '900' }}>
+            Try again
+          </Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  );
+}

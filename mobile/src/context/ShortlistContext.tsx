@@ -6,15 +6,13 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { Alert, Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { Alert } from 'react-native';
 
 import {
   API_BASE_URL,
   API_ENDPOINTS,
 } from '@/config/api';
-
-const CUSTOMER_TOKEN_KEY = 'makazii_customer_token';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 type ShortlistContextType = {
   shortlistedIds: string[];
@@ -46,31 +44,7 @@ const ShortlistContext = createContext<
 >(undefined);
 
 async function getCustomerToken(): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      if (
-        typeof window === 'undefined' ||
-        !window.localStorage
-      ) {
-        return null;
-      }
-
-      return window.localStorage.getItem(
-        CUSTOMER_TOKEN_KEY,
-      );
-    }
-
-    return await SecureStore.getItemAsync(
-      CUSTOMER_TOKEN_KEY,
-    );
-  } catch (error) {
-    console.error(
-      'Unable to read customer token:',
-      error,
-    );
-
-    return null;
-  }
+  return getMarketplaceSessionToken();
 }
 
 async function shortlistRequest(

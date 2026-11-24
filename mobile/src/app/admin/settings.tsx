@@ -25,6 +25,7 @@ import {
   Save,
   Settings as SettingsIcon,
   ShieldCheck,
+  Store,
   UserRound,
   UsersRound,
   X,
@@ -95,6 +96,11 @@ const NAV_ITEMS = [
     label: 'Landlords',
     icon: UserRound,
     route: '/admin/landlords',
+  },
+  {
+    label: 'Business Owners',
+    icon: Store,
+    route: '/admin/business-owners',
   },
   {
     label: 'Marketers',

@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Store,
   UserRound,
   Users,
   X,
@@ -197,6 +198,11 @@ const NAV_ITEMS: NavItem[] = [
     label: "Landlords",
     route: "/admin/landlords",
     icon: Home,
+  },
+  {
+    label: "Business Owners",
+    route: "/admin/business-owners",
+    icon: Store,
   },
   {
     label: "Marketers",
@@ -535,7 +541,7 @@ function Sidebar({
           PEOPLE
         </Text>
 
-        {NAV_ITEMS.slice(4, 7).map((item) => {
+        {NAV_ITEMS.slice(4, 8).map((item) => {
           const Icon = item.icon;
 
           return (
@@ -561,7 +567,7 @@ function Sidebar({
           SYSTEM
         </Text>
 
-        {NAV_ITEMS.slice(7).map((item) => {
+        {NAV_ITEMS.slice(8).map((item) => {
           const Icon = item.icon;
 
           return (

@@ -25,6 +25,7 @@ import {
   UserRound,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCustomer } from '@/context/CustomerContext';
 
 const COLORS = {
   background: '#0B0F10',
@@ -178,6 +179,22 @@ function PortalCard({
 }
 
 export default function AccountScreen() {
+  const {
+    isBusinessMarketplaceSession,
+    activateMarketplaceSession,
+  } = useCustomer();
+
+  const switchToBusinessDashboard = async () => {
+    const result = await activateMarketplaceSession('business');
+
+    if (!result.success) {
+      Alert.alert('Unable to switch account', result.message);
+      return;
+    }
+
+    router.replace('/business/application');
+  };
+
   const openAdminLogin = () => {
     router.push('/admin/login');
   };
@@ -300,6 +317,36 @@ export default function AccountScreen() {
             />
           </View>
         </View>
+
+        {isBusinessMarketplaceSession && (
+          <Pressable
+            onPress={() => void switchToBusinessDashboard()}
+            style={({ pressed }) => ({
+              backgroundColor: COLORS.card,
+              borderColor: COLORS.border,
+              borderWidth: 1,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 18,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              opacity: pressed ? 0.75 : 1,
+            })}
+            accessibilityRole="button"
+            accessibilityLabel="Switch to Business Dashboard"
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: COLORS.lime, fontWeight: '800' }}>
+                BUSINESS DASHBOARD
+              </Text>
+              <Text style={{ color: COLORS.muted, marginTop: 5 }}>
+                Return to your authorized business workspace
+              </Text>
+            </View>
+            <ArrowRight size={19} color={COLORS.lime} />
+          </Pressable>
+        )}
 
         {/* Quick support card */}
         <View style={styles.supportCard}>

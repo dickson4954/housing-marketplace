@@ -6,15 +6,12 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import * as SecureStore from 'expo-secure-store';
-
 import type { Property } from '@/types/property';
 import {
   API_BASE_URL,
   API_ENDPOINTS,
 } from '@/config/api';
-
-const CUSTOMER_TOKEN_KEY = 'makazii_customer_token';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 /* ============================================================================
    VIEWING STATUS
@@ -363,9 +360,7 @@ const ViewingContext =
 async function getCustomerToken(): Promise<
   string | null
 > {
-  return SecureStore.getItemAsync(
-    CUSTOMER_TOKEN_KEY,
-  );
+  return getMarketplaceSessionToken();
 }
 
 /* ============================================================================

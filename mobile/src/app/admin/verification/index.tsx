@@ -30,6 +30,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Store,
   X,
   XCircle,
 } from "lucide-react-native";
@@ -872,6 +873,14 @@ export default function AdminVerificationScreen() {
         >
           <ShieldCheck size={18} color="#9CA5A7" />
           <Text style={styles.sidebarItemText}>Landlords</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.sidebarItem}
+          onPress={() => router.push("/admin/business-owners" as never)}
+        >
+          <Store size={18} color="#9CA5A7" />
+          <Text style={styles.sidebarItemText}>Business Owners</Text>
         </Pressable>
 
         <Pressable

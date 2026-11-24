@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { getMarketplaceSessionToken } from '@/lib/marketplaceSession';
 
 import { API_BASE_URL } from '@/config/api';
 
@@ -156,7 +157,6 @@ const FeedbackContext =
     undefined,
   );
 
-const CUSTOMER_TOKEN_KEY = 'makazii_customer_token';
 const ADMIN_TOKEN_KEY = 'makazii_admin_token';
 
 const CUSTOMER_CATEGORIES: ConcernCategory[] = [
@@ -407,9 +407,7 @@ const extractItems = (
 };
 
 async function getCustomerToken() {
-  return SecureStore.getItemAsync(
-    CUSTOMER_TOKEN_KEY,
-  );
+  return getMarketplaceSessionToken();
 }
 
 async function apiRequest(

@@ -234,6 +234,7 @@ const NAV_ITEMS = [
   { label: 'Viewings', route: '/admin/viewings' },
   { label: 'Verification', route: '/admin/verification' },
   { label: 'Landlords', route: '/admin/landlords' },
+  { label: 'Business Owners', route: '/admin/business-owners' },
   { label: 'Marketers', route: '/admin/marketers' },
   { label: 'Users', route: '/admin/users' },
   { label: 'Notifications', route: '/admin/notifications' },

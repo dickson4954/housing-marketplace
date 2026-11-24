@@ -29,6 +29,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Store,
   UserCheck,
   UserPlus,
   Users,
@@ -102,6 +103,11 @@ const NAV_ITEMS = [
     label: 'Landlords',
     icon: Users,
     route: '/admin/landlords',
+  },
+  {
+    label: 'Business Owners',
+    icon: Store,
+    route: '/admin/business-owners',
   },
   {
     label: 'Marketers',
